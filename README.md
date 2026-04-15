@@ -6,11 +6,15 @@
 
 ## Funcionalidades Principais
 
-- **Normalização Automatizada**: Ignora ruídos de cabeçalho (Linha 1) e promove nomes técnicos da Linha 2 automaticamente.
-- **Dashboard de Business Intelligence**: Visualização em tempo real de faturamento por agência e volume por produto através de gráficos dinâmicos.
-- **Workflow de Seleção (Worklist)**: Sistema de marcação persistente no banco de dados para separação de lotes de trabalho.
+- **Workflow de Movimentação (Caixa de Entrada)**: Sistema de categorização estrita. A visão geral atua como uma "Caixa de Entrada" (itens não organizados). Ao mover para uma pasta, o item sai da visão geral, garantindo que cada operação pertença a apenas um local por vez.
+- **Normalização Automatizada**: Padronização automática de nomes de agências para o formato "CIDADE - UF" e limpeza de espaços em branco (`trim`) em todas as buscas e filtros para evitar falhas de busca.
+- **Integridade de Dados e Recuperação**: 
+    - **Proteção MD5**: Registro de hash de arquivo para controle de importações.
+    - **Prevenção de Duplicatas**: Bloqueio automático de registros repetidos baseado no CTRC Único.
+    - **Modo Recuperação**: Permite re-upload de arquivos para restaurar itens deletados acidentalmente, inserindo apenas o que falta no banco.
+- **Busca Universal e Avançada**: Motor de busca SQL puro que realiza correspondências `ILIKE` em todas as 27 colunas simultaneamente, com filtros paramétricos dedicados para Pagador, Remetente, Destinatário, Produto, Placa, Peso e Valores.
 - **Edição Inline com Auditoria**: Altere qualquer dado diretamente na grade com rastreabilidade total de alterações no backend.
-- **Filtros Híbridos**: Busca universal via texto e filtros paramétricos (Peso, Valor Total, CTRC, Placa).
+- **Dashboard de Business Intelligence**: Visualização em tempo real de faturamento por agência e volume por produto através de gráficos dinâmicos.
 - **Design Adaptativo**: Interface moderna com suporte completo a Modo Escuro e Modo Claro.
 
 ---
@@ -34,7 +38,7 @@ O projeto adota o padrão **Monorepo** com **Workspaces**, garantindo coesão en
 - **Frontend**: React, Tailwind CSS, Recharts, Lucide
 - **Backend**: Node.js, Express, Prisma ORM
 - **Banco de Dados**: PostgreSQL
-- **Runtime**: Bun
+- **Runtime**: Bun / Node.js
 
 ---
 
@@ -58,15 +62,15 @@ PORT=3000
 ### 2. Instalação e Migração
 Na raiz do projeto, execute os comandos de bootstrap:
 ```bash
-bun install
-bun run prisma:generate
-bun run prisma:migrate
+npm install
+npm run prisma:generate
+npm run prisma:migrate
 ```
 
 ### 3. Execução em Desenvolvimento
 Para rodar API e Web simultaneamente:
 ```bash
-bun run dev
+npm run dev
 ```
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:3000/api`

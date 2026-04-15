@@ -1,17 +1,27 @@
+// /home/penta/Logicell/frontend/src/components/LogisticsTable.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
-import { Search, UploadCloud, Download, Loader2, Edit3, Map, Landmark, PackageSearch, Truck, Package, CheckSquare, XSquare, PlusSquare, MinusSquare } from 'lucide-react';
+import { Search, Download, Edit3, Landmark, Truck, Package, PlusSquare, MinusSquare, FolderPlus, FolderMinus, ChevronDown, CheckCircle2, Table as TableIcon, Trash2, UploadCloud, Loader2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Dashboard } from './Dashboard';
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
 const COLUNAS = [
   { key: 'nm_agencia', label: 'Agência', width: '180px' },
   { key: 'dt_emissao_', label: 'Emissão', width: '120px' },
+  { key: 'cd_pessoa_pagador', label: 'Cód. Pagador', width: '120px' },
   { key: 'nm_pessoa_pagador', label: 'Pagador', width: '250px' },
+  { key: 'nr_cpf_cnpj_raiz', label: 'CNPJ Raiz', width: '140px' },
+  { key: 'nr_cpf_cnpj_pagador', label: 'CPF/CNPJ Pagador', width: '180px' },
   { key: 'nr_ctrc', label: 'CTRC', width: '120px' },
+  { key: 'id_tipo_documento', label: 'Tipo Doc', width: '100px' },
+  { key: 'nm_pessoa_remetente', label: 'Remetente', width: '250px' },
+  { key: 'nm_cidade_origem', label: 'Cidade Origem', width: '180px' },
+  { key: 'ds_sigla_origem', label: 'UF Origem', width: '80px' },
+  { key: 'nm_pessoa_destinatario', label: 'Destinatário', width: '250px' },
+  { key: 'nm_cidade_destino', label: 'Cidade Destino', width: '180px' },
+  { key: 'ds_sigla_destino', label: 'UF Destino', width: '80px' },
   { key: 'nm_produto', label: 'Produto', width: '150px' },
   { key: 'vl_peso', label: 'Peso (kg)', width: '120px', isNumeric: true },
   { key: 'vl_tarifa', label: 'Tarifa (R$)', width: '120px', isCurrency: true },
@@ -30,92 +40,199 @@ const COLUNAS = [
 const formatarMoeda = (val: any) => val ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val)) : '-';
 const formatarData = (val: any) => val ? new Date(val).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
 
-export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyWorkListMode = false }) => {
+interface Props {
+  pastaId?: number;
+  nomePasta?: string;
+}
+
+export const LogisticsTable: React.FC<Props> = ({ pastaId, nomePasta }) => {
   const [dados, setDados] = useState<any[]>([]);
   const [agencias, setAgencias] = useState<string[]>([]);
-  const [filtros, setFilters] = useState({ 
-    search: '', agency: '', product: '', driver: '', plate: '', payer: '',
+  const [pastas, setPastas] = useState<any[]>([]);
+  const [filtros, setFilters] = useState({
+    search: '', agency: '', product: '', plate: '', payer: '', sender: '', recipient: '',
     minPeso: '', maxPeso: '', minTotal: '', maxTotal: ''
   });
   const [paginacao, setPagination] = useState({ pagina: 1, limite: 100, total: 0, totalPaginas: 0 });
   const [editando, setEditing] = useState<{ id: number; campo: string; valorTemp: string } | null>(null);
   const [carregando, setLoading] = useState(false);
   const [subindo, setUploading] = useState(false);
-  
-  // Estado para controlar se o botão de lote está no modo "Remover"
-  const [loteMarcado, setLoteMarcado] = useState(false);
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [showPastaMenu, setShowPastaMenu] = useState(false);
 
-  useEffect(() => { fetch('/api/agencies').then(r => r.json()).then(setAgencias); }, []);
+  const carregarPastasDropdown = () => {
+    fetch('/api/pastas').then(r => r.json()).then(setPastas);
+  };
 
-  const buscarDados = useCallback(async () => {
-    setLoading(true);
-    // MAPEAMENTO CORRETO DAS CHAVES PARA O BACKEND
-    const params = new URLSearchParams({
-      search: filtros.search,
-      nm_agencia: filtros.agency,
-      nm_produto: filtros.product,
-      nm_motorista: filtros.driver,
-      ds_placa: filtros.plate,
-      nm_pessoa_pagador: filtros.payer,
-      min_peso: filtros.minPeso,
-      max_peso: filtros.maxPeso,
-      min_total: filtros.minTotal,
-      max_total: filtros.maxTotal,
-      onlyWorkList: String(onlyWorkListMode),
-      page: String(paginacao.pagina),
-      limit: String(paginacao.limite)
-    });
+  const lidarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        alert(`Sucesso! ${data.adicionados} novos itens adicionados. (${data.ignorados} duplicatas ignoradas)`);
+        buscarDados();
+        window.dispatchEvent(new CustomEvent('folderUpdate'));
+      } else {
+        alert(`Erro: ${data.error}`);
+      }
+    } catch (err) {
+      alert('Erro ao enviar arquivo.');
+    } finally {
+      setUploading(false);
+      e.target.value = ''; // Limpa o input
+    }
+  };
+const carregarAgencias = () => {
+  fetch('/api/agencies').then(r => r.json()).then(setAgencias);
+};
+
+useEffect(() => { 
+  carregarAgencias();
+  carregarPastasDropdown();
+  window.addEventListener('folderUpdate', carregarPastasDropdown);
+  return () => window.removeEventListener('folderUpdate', carregarPastasDropdown);
+}, []);
+
+const buscarDados = useCallback(async () => {
+  setLoading(true);
+  // Também atualiza as agências se for o caso
+  carregarAgencias();
+  const params = new URLSearchParams({
+    search: filtros.search,
+    nm_agencia: filtros.agency,
+    nm_produto: filtros.product,
+    ds_placa: filtros.plate,
+    nm_pessoa_pagador: filtros.payer,
+    nm_pessoa_remetente: filtros.sender,
+    nm_pessoa_destinatario: filtros.recipient,
+    min_peso: filtros.minPeso,
+    max_peso: filtros.maxPeso,
+    min_total: filtros.minTotal,
+    max_total: filtros.maxTotal,
+    page: String(paginacao.pagina),
+    limit: String(paginacao.limite)
+  });
+
+    if (pastaId) params.append('pastaId', String(pastaId));
+
     try {
       const res = await fetch(`/api/operacoes?${params}`);
       const json = await res.json();
       setDados(json.data);
       setPagination(prev => ({ ...prev, total: json.meta.total, totalPaginas: json.meta.totalPages }));
     } finally { setLoading(false); }
-  }, [filtros, paginacao.pagina, paginacao.limite, onlyWorkListMode]);
+  }, [filtros, paginacao.pagina, paginacao.limite, pastaId]);
 
   useEffect(() => {
     const timer = setTimeout(buscarDados, 300);
-    return () => clearTimeout(timer);
+    window.addEventListener('folderUpdate', buscarDados);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('folderUpdate', buscarDados);
+    };
   }, [buscarDados]);
 
   useEffect(() => { 
     setPagination(p => ({ ...p, pagina: 1 }));
-    setLoteMarcado(false); // Reseta o toggle de lote ao mudar filtros
-  }, [filtros, onlyWorkListMode]);
+    setSelecionados(new Set());
+  }, [filtros, pastaId]);
 
-  const toggleBulk = async () => {
+  const toggleSelecao = (id: number) => {
+    const novos = new Set(selecionados);
+    if (novos.has(id)) novos.delete(id);
+    else novos.add(id);
+    setSelecionados(novos);
+  };
+
+  const selecionarTudoNaPagina = () => {
+    if (selecionados.size === dados.length) setSelecionados(new Set());
+    else setSelecionados(new Set(dados.map(d => d.id)));
+  };
+
+  const adicionarAPasta = async (idPastaDestino: number | null) => {
     setLoading(true);
-    const acao = onlyWorkListMode ? 'remove' : (loteMarcado ? 'remove' : 'add');
-    
-    // Busca todos os IDs filtrados
-    const params = new URLSearchParams({
-      search: filtros.search,
-      nm_agencia: filtros.agency,
-      nm_produto: filtros.product,
-      nm_motorista: filtros.driver,
-      ds_placa: filtros.plate,
-      nm_pessoa_pagador: filtros.payer,
-      min_peso: filtros.minPeso,
-      max_peso: filtros.maxPeso,
-      min_total: filtros.minTotal,
-      max_total: filtros.maxTotal,
-      onlyWorkList: String(onlyWorkListMode)
-    });
-    
-    const response = await fetch(`/api/export?${params}`);
-    const items = await response.json();
-    const ids = items.map((i: any) => i.id);
+    let ids: number[] = [];
+
+    if (selecionados.size > 0) {
+      ids = Array.from(selecionados);
+    } else {
+      const params = new URLSearchParams({
+        search: filtros.search, nm_agencia: filtros.agency, nm_produto: filtros.product,
+        nm_motorista: filtros.driver, ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
+        min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal
+      });
+      if (pastaId) params.append('pastaId', String(pastaId));
+
+      const response = await fetch(`/api/export?${params}`);
+      const items = await response.json();
+      ids = items.map((i: any) => i.id);
+    }
 
     if (ids.length > 0) {
-      await fetch('/api/worklist/bulk', {
+      const res = await fetch('/api/pastas/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, action: acao })
+        body: JSON.stringify({ ids, pastaId: idPastaDestino, action: idPastaDestino === null ? 'remove' : 'add' })
       });
+      if (res.ok) {
+        window.dispatchEvent(new CustomEvent('folderUpdate'));
+      }
     }
     
-    if (!onlyWorkListMode) setLoteMarcado(!loteMarcado);
-    buscarDados();
+    setSelecionados(new Set());
+    setShowPastaMenu(false);
+    setLoading(false);
+  };
+
+  const excluirItens = async () => {
+    let ids: number[] = [];
+
+    if (selecionados.size > 0) {
+      ids = Array.from(selecionados);
+    } else {
+      const params = new URLSearchParams({
+        search: filtros.search, nm_agencia: filtros.agency, nm_produto: filtros.product,
+        nm_motorista: filtros.driver, ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
+        min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal
+      });
+      if (pastaId) params.append('pastaId', String(pastaId));
+
+      const response = await fetch(`/api/export?${params}`);
+      const items = await response.json();
+      ids = items.map((i: any) => i.id);
+    }
+
+    if (ids.length === 0) return;
+
+    if (!confirm(`TEM CERTEZA? Você está prestes a excluir PERMANENTEMENTE ${ids.length} itens do banco de dados. Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setLoading(true);
+    const res = await fetch('/api/operacoes/bulk', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+
+    if (res.ok) {
+      setSelecionados(new Set());
+      buscarDados();
+      window.dispatchEvent(new CustomEvent('folderUpdate'));
+      alert(`${ids.length} itens excluídos com sucesso.`);
+    }
+    setLoading(false);
   };
 
   const salvarEdicao = async (id: number, campo: string, valor: string) => {
@@ -129,9 +246,10 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
     const params = new URLSearchParams({
       search: filtros.search, nm_agencia: filtros.agency, nm_produto: filtros.product,
       nm_motorista: filtros.driver, ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
-      min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal,
-      onlyWorkList: String(onlyWorkListMode)
+      min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal
     });
+    if (pastaId) params.append('pastaId', String(pastaId));
+
     const response = await fetch(`/api/export?${params}`);
     const allData = await response.json();
 
@@ -144,47 +262,90 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Export");
-    XLSX.writeFile(wb, `Logicell_Export_${onlyWorkListMode ? 'Lista' : 'Filtros'}.xlsx`);
+    XLSX.writeFile(wb, `Logicell_${nomePasta || 'Geral'}.xlsx`);
     setLoading(false);
   };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-in fade-in duration-500">
       
-      {/* HEADER / BUSCA / LOTE */}
+      {/* HEADER / BUSCA / AÇÕES */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-[2rem] shadow-sm flex flex-col xl:flex-row gap-4 items-center justify-between">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input 
-            placeholder="Pesquisar em tudo..." 
-            value={filtros.search}
-            onChange={(e) => setFilters(p => ({ ...p, search: e.target.value }))}
-            className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-0 rounded-2xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/50 text-base font-medium"
-          />
+        <div className="flex items-center gap-4 flex-1 w-full">
+          {pastaId && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl shrink-0">
+              <Truck className="text-indigo-500" size={18} />
+              <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{nomePasta}</span>
+            </div>
+          )}
+          
+          <label className="flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm group shrink-0">
+            {subindo ? (
+              <Loader2 size={20} className="animate-spin text-indigo-500" />
+            ) : (
+              <UploadCloud size={20} className="text-slate-400 group-hover:text-indigo-500 transition-colors" />
+            )}
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Importar</span>
+            <input type="file" className="hidden" accept=".xls,.xlsx" onChange={lidarUpload} disabled={subindo} />
+          </label>
+
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              placeholder="Pesquisar nestes dados..." 
+              value={filtros.search}
+              onChange={(e) => setFilters(p => ({ ...p, search: e.target.value.trim() }))}
+              className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-0 rounded-2xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-indigo-500/50 text-base font-medium"
+            />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full xl:w-auto">
-          {/* BOTÃO TOGGLE INTELIGENTE */}
-          <button 
-            onClick={toggleBulk} 
-            className={cn(
-              "flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold text-xs transition-all shadow-md",
-              onlyWorkListMode || loteMarcado 
-                ? "bg-rose-600 text-white shadow-rose-500/20" 
-                : "bg-indigo-600 text-white shadow-indigo-500/20"
+        <div className="flex items-center gap-2 w-full xl:w-auto relative">
+          {/* BOTÃO MOVER ÚNICO */}
+          <div className="relative flex-1 xl:flex-none">
+            <button 
+              onClick={() => setShowPastaMenu(!showPastaMenu)} 
+              className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold text-xs transition-all shadow-lg shadow-indigo-500/20"
+            >
+              <FolderPlus size={18} />
+              {selecionados.size > 0 ? `Mover Selecionados (${selecionados.size})` : 'Mover Filtrados'}
+              <ChevronDown size={14} className={cn("transition-transform", showPastaMenu && "rotate-180")} />
+            </button>
+
+            {showPastaMenu && (
+              <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mover para</p>
+                </div>
+                <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                  {/* Opção Caixa de Entrada sempre primeiro */}
+                  <button onClick={() => adicionarAPasta(null)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-bold text-indigo-600 dark:text-indigo-400 transition-colors border-b border-slate-100 dark:border-slate-800">
+                    <TableIcon size={16} />
+                    <span>Caixa de Entrada</span>
+                  </button>
+
+                  {pastas.map(p => (
+                    <button key={p.id} onClick={() => adicionarAPasta(p.id)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-300 transition-colors border-b border-slate-50 dark:border-slate-800/50 last:border-0">
+                      <CheckCircle2 size={16} className="text-indigo-500" />
+                      <span className="truncate">{p.nome}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
-          >
-            {onlyWorkListMode || loteMarcado ? <MinusSquare size={18} /> : <PlusSquare size={18} />}
-            {onlyWorkListMode ? 'Remover Filtrados' : (loteMarcado ? 'Desmarcar Filtrados' : 'Selecionar Filtrados')}
+          </div>
+          
+          <button onClick={excluirItens} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-rose-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-rose-500/20 hover:bg-rose-700 transition-colors">
+            <Trash2 size={18} />
           </button>
           
           <button onClick={exportarExcel} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-500/20">
-            <Download size={18} /> Exportar {onlyWorkListMode ? 'Lista' : 'Filtros'}
+            <Download size={18} /> Exportar
           </button>
         </div>
       </div>
 
-      {/* PAINEL DE FILTROS (CHAVES CORRIGIDAS) */}
+      {/* PAINEL DE FILTROS */}
       <div className="bg-white/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-4 flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-[180px]">
@@ -194,10 +355,11 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
               {agencias.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-          <input placeholder="Pagador" value={filtros.payer} onChange={e => setFilters(p => ({...p, payer: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
-          <input placeholder="Produto" value={filtros.product} onChange={e => setFilters(p => ({...p, product: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
-          <input placeholder="Motorista" value={filtros.driver} onChange={e => setFilters(p => ({...p, driver: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
-          <input placeholder="Placa" value={filtros.plate} onChange={e => setFilters(p => ({...p, plate: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+          <input placeholder="Pagador" value={filtros.payer} onChange={e => setFilters(p => ({...p, payer: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+          <input placeholder="Remetente" value={filtros.sender} onChange={e => setFilters(p => ({...p, sender: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+          <input placeholder="Destinatário" value={filtros.recipient} onChange={e => setFilters(p => ({...p, recipient: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+          <input placeholder="Produto" value={filtros.product} onChange={e => setFilters(p => ({...p, product: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+          <input placeholder="Placa" value={filtros.plate} onChange={e => setFilters(p => ({...p, plate: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
         </div>
         
         <div className="flex flex-wrap gap-6 items-center border-t border-slate-100 dark:border-slate-800 pt-3">
@@ -211,7 +373,7 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
             <input placeholder="Mín" type="number" value={filtros.minTotal} onChange={e => setFilters(p => ({...p, minTotal: e.target.value}))} className="w-24 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs" />
             <input placeholder="Máx" type="number" value={filtros.maxTotal} onChange={e => setFilters(p => ({...p, maxTotal: e.target.value}))} className="w-24 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs" />
           </div>
-          <button onClick={() => setFilters({ search: '', agency: '', product: '', driver: '', plate: '', payer: '', minPeso: '', maxPeso: '', minTotal: '', maxTotal: '' })} className="ml-auto text-[10px] font-black text-rose-500 uppercase">Limpar Filtros</button>
+          <button onClick={() => setFilters({ search: '', agency: '', product: '', plate: '', payer: '', sender: '', recipient: '', minPeso: '', maxPeso: '', minTotal: '', maxTotal: '' })} className="ml-auto text-[10px] font-black text-rose-500 uppercase">Limpar Filtros</button>
         </div>
       </div>
 
@@ -223,7 +385,9 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
             <thead className="sticky top-0 z-20 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="w-14 px-4 py-4 text-[10px] font-black text-slate-400 text-center uppercase">Nº</th>
-                <th className="w-12 px-2 py-4 text-center"><Package size={16} className="mx-auto text-slate-400" /></th>
+                <th className="w-12 px-2 py-4 text-center">
+                  <input type="checkbox" checked={selecionados.size === dados.length && dados.length > 0} onChange={selecionarTudoNaPagina} className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer" />
+                </th>
                 {COLUNAS.map(col => (
                   <th key={col.key} style={{ width: col.width, minWidth: col.width }} className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-r border-slate-100/50 dark:border-slate-800/50 last:border-0">
                     {col.label}
@@ -233,13 +397,10 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
               {dados.map((row, index) => (
-                <tr key={row.id} className={cn("hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors", row.naListaTrabalho && "bg-indigo-50/50 dark:bg-indigo-900/20")}>
+                <tr key={row.id} className={cn("hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors", selecionados.has(row.id) && "bg-indigo-50/50 dark:bg-indigo-900/20")}>
                   <td className="px-4 py-3 text-[10px] text-slate-400 font-mono text-center border-r border-slate-100 dark:border-slate-800/50">{(paginacao.pagina - 1) * paginacao.limite + index + 1}</td>
                   <td className="px-2 py-3 border-r border-slate-100 dark:border-slate-800/50 text-center">
-                    <input type="checkbox" checked={!!row.naListaTrabalho} onChange={() => {
-                      fetch('/api/worklist/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operacaoId: row.id }) });
-                      setDados(prev => prev.map(r => r.id === row.id ? { ...r, naListaTrabalho: r.naListaTrabalho ? null : { id: 0 } } : r));
-                    }} className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 cursor-pointer" />
+                    <input type="checkbox" checked={selecionados.has(row.id)} onChange={() => toggleSelecao(row.id)} className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 cursor-pointer" />
                   </td>
                   {COLUNAS.map(col => (
                     <td key={col.key} onDoubleClick={() => setEditing({ id: row.id, campo: col.key, valorTemp: row[col.key] || '' })} className={cn("px-4 py-3.5 text-xs font-semibold text-slate-600 dark:text-slate-300 relative border-r border-slate-50 dark:border-slate-800/50 last:border-0", (col.isNumeric || col.isCurrency) && "text-right tabular-nums")}>
@@ -258,7 +419,7 @@ export const LogisticsTable: React.FC<{ onlyWorkListMode?: boolean }> = ({ onlyW
           </table>
         </div>
 
-        <div className="px-8 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center transition-colors">
+        <div className="px-8 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total: {paginacao.total} registros</div>
             <select 

@@ -17,7 +17,7 @@ model Operacao {
   nm_pessoa_pagador             String?
   nr_cpf_cnpj_raiz              String?
   nr_cpf_cnpj_pagador           String?
-  nr_ctrc                       String?
+  nr_ctrc                       String?  @unique
   id_tipo_documento             String?
   nm_pessoa_remetente           String?
   nm_cidade_origem              String?
@@ -43,7 +43,9 @@ model Operacao {
   importacaoId                  Int?
   importacao                    Importacao? @relation(fields: [importacaoId], references: [id])
   auditorias                    Auditoria[]
-  naListaTrabalho               ItemListaTrabalho?
+  
+  pastaId                       Int?
+  pasta                         Pasta?      @relation(fields: [pastaId], references: [id])
 
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
@@ -58,7 +60,7 @@ model Importacao {
   nomeArquivo   String
   usuario       String
   qtdRegistros  Int
-  hashArquivo   String?    @unique // Para evitar duplicatas
+  hashArquivo   String?    // Removido @unique para permitir recuperação de dados
   createdAt     DateTime   @default(now())
   operacoes     Operacao[]
 }
@@ -74,9 +76,10 @@ model Auditoria {
   createdAt     DateTime @default(now())
 }
 
-model ItemListaTrabalho {
-  id            Int      @id @default(autoincrement())
-  operacaoId    Int      @unique
-  operacao      Operacao @relation(fields: [operacaoId], references: [id])
-  createdAt     DateTime @default(now())
+model Pasta {
+  id            Int         @id @default(autoincrement())
+  nome          String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  operacoes     Operacao[]
 }

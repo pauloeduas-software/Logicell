@@ -26,8 +26,9 @@ export const OperacaoController = {
   },
 
   async export(req: Request, res: Response) {
-    const { search, nm_agencia, nm_produto, ds_placa, nm_pessoa_pagador, onlyWorkList, min_peso, max_peso, min_total, max_total } = req.query;
+    const { search, nm_agencia, nm_produto, ds_placa, nm_pessoa_pagador, pastaId, min_peso, max_peso, min_total, max_total } = req.query;
     const where: any = { AND: [] };
+    
     if (search) where.AND.push({ OR: [{ nr_ctrc: { contains: String(search), mode: 'insensitive' } }, { nm_motorista: { contains: String(search), mode: 'insensitive' } }, { nm_pessoa_pagador: { contains: String(search), mode: 'insensitive' } }, { nm_agencia: { contains: String(search), mode: 'insensitive' } }] });
     if (nm_agencia) where.AND.push({ nm_agencia: String(nm_agencia) });
     if (nm_produto) where.AND.push({ nm_produto: { contains: String(nm_produto), mode: 'insensitive' } });
@@ -35,7 +36,12 @@ export const OperacaoController = {
     if (nm_pessoa_pagador) where.AND.push({ nm_pessoa_pagador: { contains: String(nm_pessoa_pagador), mode: 'insensitive' } });
     if (min_peso || max_peso) where.AND.push({ vl_peso: { ...(min_peso && { gte: Number(min_peso) }), ...(max_peso && { lte: Number(max_peso) }) } });
     if (min_total || max_total) where.AND.push({ vl_total: { ...(min_total && { gte: Number(min_total) }), ...(max_total && { lte: Number(max_total) }) } });
-    if (onlyWorkList === 'true') where.AND.push({ naListaTrabalho: { isNot: null } });
+    
+    if (pastaId) {
+      where.AND.push({ pastaId: Number(pastaId) });
+    } else {
+      where.AND.push({ pastaId: null });
+    }
 
     try {
       const data = await prisma.operacao.findMany({ where, orderBy: { id: 'desc' } });
@@ -57,39 +63,67 @@ export const OperacaoController = {
 
   async getAgencies(req: Request, res: Response) {
     try {
-      const agencies = await prisma.operacao.groupBy({ by: ['nm_agencia'] });
-      return res.json(agencies.map(a => a.nm_agencia).filter(Boolean));
-    } catch (error) { return res.status(500).json({ error: 'Erro agencias' }); }
+      const agencies = await prisma.operacao.groupBy({ 
+        by: ['nm_agencia'],
+        where: { nm_agencia: { not: null, not: '' } },
+        orderBy: { nm_agencia: 'asc' }
+      });
+      return res.json(agencies.map(a => a.nm_agencia));
+    } catch (error) { return res.status(500).json({ error: 'Erro ao buscar agências' }); }
   },
 
-  async toggleWorkList(req: Request, res: Response) {
+  async addToPasta(req: Request, res: Response) {
+    const { operacaoId, pastaId } = req.body;
+    try {
+      await prisma.operacao.update({
+        where: { id: Number(operacaoId) },
+        data: { pastaId: Number(pastaId) }
+      });
+      return res.json({ success: true });
+    } catch (e) { return res.status(400).json({ error: 'Erro ao mover para a pasta' }); }
+  },
+
+  async removeFromPasta(req: Request, res: Response) {
     const { operacaoId } = req.body;
     try {
-      const existe = await prisma.itemListaTrabalho.findUnique({ where: { operacaoId } });
-      if (existe) await prisma.itemListaTrabalho.delete({ where: { operacaoId } });
-      else await prisma.itemListaTrabalho.create({ data: { operacaoId } });
+      await prisma.operacao.update({
+        where: { id: Number(operacaoId) },
+        data: { pastaId: null }
+      });
       return res.json({ success: true });
-    } catch (e) { return res.status(400).json({ error: 'Erro toggle' }); }
+    } catch (e) { return res.status(400).json({ error: 'Erro ao remover da pasta' }); }
   },
 
-  async bulkToggleWorkList(req: Request, res: Response) {
-    const { ids, action } = req.body;
+  async bulkActionPasta(req: Request, res: Response) {
+    const { ids, pastaId, action } = req.body;
     try {
-      if (action === 'add') {
-        const data = ids.map((id: number) => ({ operacaoId: id }));
-        await prisma.itemListaTrabalho.createMany({ data, skipDuplicates: true });
-      } else {
-        await prisma.itemListaTrabalho.deleteMany({ where: { operacaoId: { in: ids } } });
-      }
+      await prisma.operacao.updateMany({
+        where: { id: { in: ids.map(Number) } },
+        data: { pastaId: action === 'add' ? Number(pastaId) : null }
+      });
       return res.json({ success: true });
-    } catch (e) { return res.status(400).json({ error: 'Erro bulk' }); }
+    } catch (e) { return res.status(400).json({ error: 'Erro na ação em massa' }); }
+  },
+
+  async bulkDelete(req: Request, res: Response) {
+    const { ids } = req.body;
+    try {
+      await prisma.operacao.deleteMany({
+        where: { id: { in: ids.map(Number) } }
+      });
+      return res.json({ success: true });
+    } catch (e) { return res.status(400).json({ error: 'Erro ao excluir itens' }); }
   },
 
   async update(req: Request, res: Response) {
     const { id } = req.params;
+    const data = { ...req.body };
+    if (data.nm_agencia) {
+      data.nm_agencia = data.nm_agencia.toUpperCase().replace(/\s+/g, ' ').replace(/\s*-\s*/g, ' - ').trim();
+    }
     try {
-      const updated = await prisma.operacao.update({ where: { id: Number(id) }, data: req.body });
+      const updated = await prisma.operacao.update({ where: { id: Number(id) }, data });
       return res.json(updated);
-    } catch (error) { return res.status(400).json({ error: 'Erro update' }); }
+    } catch (error) { return res.status(400).json({ error: 'Erro ao atualizar operação' }); }
   }
 };

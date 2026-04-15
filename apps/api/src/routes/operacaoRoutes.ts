@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { OperacaoController } from '../controllers/OperacaoController';
+import { PastaController } from '../controllers/PastaController';
 
 const router = Router();
 const upload = multer({ 
@@ -20,25 +21,26 @@ const upload = multer({
   }
 });
 
-// Rotas Principais
+// Operações
 router.post('/upload', upload.single('file'), OperacaoController.upload);
 router.get('/operacoes', OperacaoController.list);
 router.patch('/operacoes/:id', OperacaoController.update);
+router.get('/export', OperacaoController.export);
 
 // Dashboard e Auxiliares
 router.get('/dashboard', OperacaoController.getDashboard);
 router.get('/agencies', OperacaoController.getAgencies);
 
-// Seleção e Exportação
-router.post('/worklist/toggle', OperacaoController.toggleWorkList);
-router.post('/worklist/bulk', OperacaoController.bulkToggleWorkList);
+// Gerenciamento de Pastas (Pastas)
+router.get('/pastas', PastaController.listar);
+router.post('/pastas', PastaController.criar);
+router.patch('/pastas/:id', PastaController.atualizar);
+router.delete('/pastas/:id', PastaController.excluir);
 
-// Verificação se o método export existe antes de registrar
-if (OperacaoController.export) {
-  router.get('/export', OperacaoController.export);
-} else {
-  // Fallback caso eu tenha esquecido de exportar o método no controller refatorado
-  router.get('/export', OperacaoController.list); 
-}
+// Ações de Itens em Pastas
+router.post('/pastas/itens', OperacaoController.addToPasta);
+router.delete('/pastas/itens', OperacaoController.removeFromPasta);
+router.post('/pastas/bulk', OperacaoController.bulkActionPasta);
+router.delete('/operacoes/bulk', OperacaoController.bulkDelete);
 
 export default router;

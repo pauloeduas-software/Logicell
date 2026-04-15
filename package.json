@@ -1,0 +1,17 @@
+{
+  "name": "logicell-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run start:api\" \"npm run start:web\"",
+    "start:api": "cd apps/api && bun run dev",
+    "start:web": "cd apps/web && bun run dev",
+    "prisma:generate": "cd apps/api && bunx prisma generate",
+    "prisma:migrate": "cd apps/api && bunx prisma migrate dev"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

@@ -1,0 +1,82 @@
+// /home/penta/Logicell/backend/prisma/schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Operacao {
+  id                            Int      @id @default(autoincrement())
+  nm_agencia                    String?
+  dt_emissao_                   DateTime?
+  cd_pessoa_pagador             String?
+  nm_pessoa_pagador             String?
+  nr_cpf_cnpj_raiz              String?
+  nr_cpf_cnpj_pagador           String?
+  nr_ctrc                       String?
+  id_tipo_documento             String?
+  nm_pessoa_remetente           String?
+  nm_cidade_origem              String?
+  ds_sigla_origem               String?
+  nm_pessoa_destinatario        String?
+  nm_cidade_destino             String?
+  ds_sigla_destino              String?
+  nm_produto                    String?
+  vl_peso                       Decimal? @db.Decimal(18, 4)
+  vl_tarifa                     Decimal? @db.Decimal(18, 2)
+  vl_total                      Decimal? @db.Decimal(18, 2)
+  nr_nf                         String?
+  ds_placa                      String?
+  nm_pessoa_matriz              String?
+  nr_contrato                   String?
+  nr_chave_acesso               String?
+  nm_pessoa_usuario_lancamento  String?
+  id_tipo_ctrc                  String?
+  nm_proprietario_posse_cavalo  String?
+  nm_motorista                  String?
+
+  // Relacionamentos para as novas funcionalidades
+  importacaoId                  Int?
+  importacao                    Importacao? @relation(fields: [importacaoId], references: [id])
+  auditorias                    Auditoria[]
+  naListaTrabalho               ItemListaTrabalho?
+
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+
+  @@index([nm_agencia])
+  @@index([nm_produto])
+  @@index([nm_motorista])
+}
+
+model Importacao {
+  id            Int        @id @default(autoincrement())
+  nomeArquivo   String
+  usuario       String
+  qtdRegistros  Int
+  hashArquivo   String?    @unique // Para evitar duplicatas
+  createdAt     DateTime   @default(now())
+  operacoes     Operacao[]
+}
+
+model Auditoria {
+  id            Int      @id @default(autoincrement())
+  operacaoId    Int
+  operacao      Operacao @relation(fields: [operacaoId], references: [id])
+  campo         String
+  valorAntigo   String?
+  valorNovo     String?
+  usuario       String
+  createdAt     DateTime @default(now())
+}
+
+model ItemListaTrabalho {
+  id            Int      @id @default(autoincrement())
+  operacaoId    Int      @unique
+  operacao      Operacao @relation(fields: [operacaoId], references: [id])
+  createdAt     DateTime @default(now())
+}

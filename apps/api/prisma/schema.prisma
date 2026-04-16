@@ -11,13 +11,13 @@ generator client {
 
 model Operacao {
   id                            Int      @id @default(autoincrement())
-  nm_agencia                    String?
-  dt_emissao_                   DateTime?
+  nm_agencia                    String
+  dt_emissao_                   DateTime
   cd_pessoa_pagador             String?
   nm_pessoa_pagador             String?
   nr_cpf_cnpj_raiz              String?
   nr_cpf_cnpj_pagador           String?
-  nr_ctrc                       String?  @unique
+  nr_ctrc                       String
   id_tipo_documento             String?
   nm_pessoa_remetente           String?
   nm_cidade_origem              String?
@@ -39,6 +39,10 @@ model Operacao {
   nm_proprietario_posse_cavalo  String?
   nm_motorista                  String?
 
+  // Novos campos de controle
+  status                        String?
+  comentarios                   String?
+
   // Relacionamentos para as novas funcionalidades
   importacaoId                  Int?
   importacao                    Importacao? @relation(fields: [importacaoId], references: [id])
@@ -50,6 +54,7 @@ model Operacao {
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 
+  @@unique([nm_agencia, nr_ctrc, nr_nf, vl_total, dt_emissao_])
   @@index([nm_agencia])
   @@index([nm_produto])
   @@index([nm_motorista])

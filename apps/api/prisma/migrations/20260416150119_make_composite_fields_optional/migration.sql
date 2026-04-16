@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Operacao" ALTER COLUMN "vl_total" DROP NOT NULL,
+ALTER COLUMN "nr_nf" DROP NOT NULL;

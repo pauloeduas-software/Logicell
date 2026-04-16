@@ -10,11 +10,13 @@ function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 const COLUNAS = [
   { key: 'nm_agencia', label: 'Agência', width: '180px' },
   { key: 'dt_emissao_', label: 'Emissão', width: '120px' },
-  { key: 'cd_pessoa_pagador', label: 'Cód. Pagador', width: '120px' },
-  { key: 'nm_pessoa_pagador', label: 'Pagador', width: '250px' },
+  { key: 'cd_pessoa_pagador', label: 'Código', width: '120px' },
+  { key: 'nm_pessoa_pagador', label: 'Cliente', width: '250px' },
   { key: 'nr_cpf_cnpj_raiz', label: 'CNPJ Raiz', width: '140px' },
-  { key: 'nr_cpf_cnpj_pagador', label: 'CPF/CNPJ Pagador', width: '180px' },
-  { key: 'nr_ctrc', label: 'CTRC', width: '120px' },
+  { key: 'nr_cpf_cnpj_pagador', label: 'CNPJ Pagador', width: '180px' },
+  { key: 'nr_ctrc', label: 'CTe', width: '120px' },
+  { key: 'status', label: 'ANEXADO ATUA TICKET/NF', width: '220px' },
+  { key: 'comentarios', label: 'OBSERVAÇÃO', width: '300px' },
   { key: 'id_tipo_documento', label: 'Tipo Doc', width: '100px' },
   { key: 'nm_pessoa_remetente', label: 'Remetente', width: '250px' },
   { key: 'nm_cidade_origem', label: 'Cidade Origem', width: '180px' },
@@ -32,9 +34,15 @@ const COLUNAS = [
   { key: 'nr_contrato', label: 'Contrato', width: '120px' },
   { key: 'nr_chave_acesso', label: 'Chave Acesso', width: '380px' },
   { key: 'nm_pessoa_usuario_lancamento', label: 'Usuário', width: '180px' },
-  { key: 'id_tipo_ctrc', label: 'Tipo CTRC', width: '120px' },
+  { key: 'id_tipo_ctrc', label: 'Tipo CTe', width: '120px' },
   { key: 'nm_proprietario_posse_cavalo', label: 'Proprietário', width: '200px' },
   { key: 'nm_motorista', label: 'Motorista', width: '250px' },
+];
+
+const STATUS_OPTIONS = [
+  "PENDENTE", "ANEXADO", "DIVERGENTE", "ILEGIVEL", "POSTO", 
+  "MDF EM ABERTO", "COMPLEMENTAR", "1° PERNA", "SINISTRO", 
+  "DESACORDO", "CARGA RECUSADA"
 ];
 
 const formatarMoeda = (val: any) => val ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val)) : '-';
@@ -90,47 +98,53 @@ export const LogisticsTable: React.FC<Props> = ({ pastaId, nomePasta }) => {
       alert('Erro ao enviar arquivo.');
     } finally {
       setUploading(false);
-      e.target.value = ''; // Limpa o input
+      e.target.value = '';
     }
   };
-const carregarAgencias = () => {
-  fetch('/api/agencies').then(r => r.json()).then(setAgencias);
-};
 
-useEffect(() => { 
-  carregarAgencias();
-  carregarPastasDropdown();
-  window.addEventListener('folderUpdate', carregarPastasDropdown);
-  return () => window.removeEventListener('folderUpdate', carregarPastasDropdown);
-}, []);
+  const carregarAgencias = () => {
+    fetch('/api/agencies').then(r => r.json()).then(setAgencias);
+  };
 
-const buscarDados = useCallback(async () => {
-  setLoading(true);
-  // Também atualiza as agências se for o caso
-  carregarAgencias();
-  const params = new URLSearchParams({
-    search: filtros.search,
-    nm_agencia: filtros.agency,
-    nm_produto: filtros.product,
-    ds_placa: filtros.plate,
-    nm_pessoa_pagador: filtros.payer,
-    nm_pessoa_remetente: filtros.sender,
-    nm_pessoa_destinatario: filtros.recipient,
-    min_peso: filtros.minPeso,
-    max_peso: filtros.maxPeso,
-    min_total: filtros.minTotal,
-    max_total: filtros.maxTotal,
-    page: String(paginacao.pagina),
-    limit: String(paginacao.limite)
-  });
+  useEffect(() => { 
+    carregarAgencias();
+    carregarPastasDropdown();
+    window.addEventListener('folderUpdate', carregarPastasDropdown);
+    return () => window.removeEventListener('folderUpdate', carregarPastasDropdown);
+  }, []);
+
+  const buscarDados = useCallback(async () => {
+    setLoading(true);
+    carregarAgencias();
+    const params = new URLSearchParams({
+      search: filtros.search,
+      nm_agencia: filtros.agency,
+      nm_produto: filtros.product,
+      ds_placa: filtros.plate,
+      nm_pessoa_pagador: filtros.payer,
+      nm_pessoa_remetente: filtros.sender,
+      nm_pessoa_destinatario: filtros.recipient,
+      min_peso: filtros.minPeso,
+      max_peso: filtros.maxPeso,
+      min_total: filtros.minTotal,
+      max_total: filtros.maxTotal,
+      page: String(paginacao.pagina),
+      limit: String(paginacao.limite)
+    });
 
     if (pastaId) params.append('pastaId', String(pastaId));
 
     try {
       const res = await fetch(`/api/operacoes?${params}`);
       const json = await res.json();
-      setDados(json.data);
-      setPagination(prev => ({ ...prev, total: json.meta.total, totalPaginas: json.meta.totalPages }));
+      if (res.ok && json.data) {
+        setDados(json.data);
+        setPagination(prev => ({ ...prev, total: json.meta?.total || 0, totalPaginas: json.meta?.totalPages || 0 }));
+      } else {
+        setDados([]);
+      }
+    } catch (err) {
+      setDados([]);
     } finally { setLoading(false); }
   }, [filtros, paginacao.pagina, paginacao.limite, pastaId]);
 
@@ -169,7 +183,7 @@ const buscarDados = useCallback(async () => {
     } else {
       const params = new URLSearchParams({
         search: filtros.search, nm_agencia: filtros.agency, nm_produto: filtros.product,
-        nm_motorista: filtros.driver, ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
+        ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
         min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal
       });
       if (pastaId) params.append('pastaId', String(pastaId));
@@ -203,7 +217,7 @@ const buscarDados = useCallback(async () => {
     } else {
       const params = new URLSearchParams({
         search: filtros.search, nm_agencia: filtros.agency, nm_produto: filtros.product,
-        nm_motorista: filtros.driver, ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
+        ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
         min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal
       });
       if (pastaId) params.append('pastaId', String(pastaId));
@@ -245,7 +259,7 @@ const buscarDados = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({
       search: filtros.search, nm_agencia: filtros.agency, nm_produto: filtros.product,
-      nm_motorista: filtros.driver, ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
+      ds_placa: filtros.plate, nm_pessoa_pagador: filtros.payer,
       min_peso: filtros.minPeso, max_peso: filtros.maxPeso, min_total: filtros.minTotal, max_total: filtros.maxTotal
     });
     if (pastaId) params.append('pastaId', String(pastaId));
@@ -269,7 +283,6 @@ const buscarDados = useCallback(async () => {
   return (
     <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-in fade-in duration-500">
       
-      {/* HEADER / BUSCA / AÇÕES */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-[2rem] shadow-sm flex flex-col xl:flex-row gap-4 items-center justify-between">
         <div className="flex items-center gap-4 flex-1 w-full">
           {pastaId && (
@@ -301,7 +314,6 @@ const buscarDados = useCallback(async () => {
         </div>
 
         <div className="flex items-center gap-2 w-full xl:w-auto relative">
-          {/* BOTÃO MOVER ÚNICO */}
           <div className="relative flex-1 xl:flex-none">
             <button 
               onClick={() => setShowPastaMenu(!showPastaMenu)} 
@@ -318,7 +330,6 @@ const buscarDados = useCallback(async () => {
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mover para</p>
                 </div>
                 <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                  {/* Opção Caixa de Entrada sempre primeiro */}
                   <button onClick={() => adicionarAPasta(null)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-bold text-indigo-600 dark:text-indigo-400 transition-colors border-b border-slate-100 dark:border-slate-800">
                     <TableIcon size={16} />
                     <span>Caixa de Entrada</span>
@@ -345,7 +356,6 @@ const buscarDados = useCallback(async () => {
         </div>
       </div>
 
-      {/* PAINEL DE FILTROS */}
       <div className="bg-white/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-4 flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-[180px]">
@@ -355,7 +365,7 @@ const buscarDados = useCallback(async () => {
               {agencias.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
-          <input placeholder="Pagador" value={filtros.payer} onChange={e => setFilters(p => ({...p, payer: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+          <input placeholder="Cliente" value={filtros.payer} onChange={e => setFilters(p => ({...p, payer: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
           <input placeholder="Remetente" value={filtros.sender} onChange={e => setFilters(p => ({...p, sender: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
           <input placeholder="Destinatário" value={filtros.recipient} onChange={e => setFilters(p => ({...p, recipient: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
           <input placeholder="Produto" value={filtros.product} onChange={e => setFilters(p => ({...p, product: e.target.value.trim()}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
@@ -377,7 +387,6 @@ const buscarDados = useCallback(async () => {
         </div>
       </div>
 
-      {/* TABELA */}
       <div className="flex-1 min-h-0 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col shadow-sm">
         {carregando && <div className="h-1 w-full bg-indigo-500 animate-pulse" />}
         <div className="flex-1 overflow-auto custom-scrollbar">
@@ -405,9 +414,22 @@ const buscarDados = useCallback(async () => {
                   {COLUNAS.map(col => (
                     <td key={col.key} onDoubleClick={() => setEditing({ id: row.id, campo: col.key, valorTemp: row[col.key] || '' })} className={cn("px-4 py-3.5 text-xs font-semibold text-slate-600 dark:text-slate-300 relative border-r border-slate-50 dark:border-slate-800/50 last:border-0", (col.isNumeric || col.isCurrency) && "text-right tabular-nums")}>
                       {editando?.id === row.id && editando?.campo === col.key ? (
-                        <input autoFocus value={editando.valorTemp} onChange={e => setEditing({...editando, valorTemp: e.target.value})} onBlur={() => salvarEdicao(row.id, col.key, editando.valorTemp)} onKeyDown={e => e.key === 'Enter' && salvarEdicao(row.id, col.key, editando.valorTemp)} className="absolute inset-0 w-full h-full bg-white dark:bg-slate-800 border-2 border-indigo-500 px-4 outline-none z-30 font-bold" />
+                        col.key === 'status' ? (
+                          <select 
+                            autoFocus 
+                            value={editando.valorTemp} 
+                            onChange={e => setEditing({...editando, valorTemp: e.target.value})} 
+                            onBlur={() => salvarEdicao(row.id, col.key, editando.valorTemp)}
+                            className="absolute inset-0 w-full h-full bg-white dark:bg-slate-800 border-2 border-indigo-500 px-2 outline-none z-30 font-bold"
+                          >
+                            <option value="">Selecione...</option>
+                            {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        ) : (
+                          <input autoFocus value={editando.valorTemp} onChange={e => setEditing({...editando, valorTemp: e.target.value})} onBlur={() => salvarEdicao(row.id, col.key, editando.valorTemp)} onKeyDown={e => e.key === 'Enter' && salvarEdicao(row.id, col.key, editando.valorTemp)} className="absolute inset-0 w-full h-full bg-white dark:bg-slate-800 border-2 border-indigo-500 px-4 outline-none z-30 font-bold" />
+                        )
                       ) : (
-                        <span className="truncate block" title={String(row[col.key] || '')}>
+                        <span className={cn("truncate block", col.key === 'status' && "px-2 py-1 rounded-lg text-[10px] font-black inline-block bg-slate-100 dark:bg-slate-800")} title={String(row[col.key] || '')}>
                           {col.key === 'dt_emissao_' ? formatarData(row[col.key]) : (col.isCurrency ? formatarMoeda(row[col.key]) : row[col.key] || '-')}
                         </span>
                       )}

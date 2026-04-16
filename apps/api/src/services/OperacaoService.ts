@@ -30,13 +30,13 @@ export class OperacaoService {
 
     const operacoes = rawData.map((row) => ({
       importacaoId: importacao.id,
-      nm_agencia: this.padronizarAgencia(String(row['nm_agencia'] || '')),
+      nm_agencia: this.padronizarAgencia(String(row['nm_agencia'] || 'DESCONHECIDA')),
       dt_emissao_: row['dt_emissao_'] ? new Date(row['dt_emissao_']) : null,
       cd_pessoa_pagador: String(row['cd_pessoa_pagador'] || ''),
       nm_pessoa_pagador: String(row['nm_pessoa_pagador'] || ''),
       nr_cpf_cnpj_raiz: String(row['nr_cpf_cnpj_raiz'] || ''),
       nr_cpf_cnpj_pagador: String(row['nr_cpf_cnpj_pagador'] || ''),
-      nr_ctrc: String(row['nr_ctrc'] || ''),
+      nr_ctrc: String(row['nr_ctrc'] || '0').trim(),
       id_tipo_documento: String(row['id_tipo_documento'] || ''),
       nm_pessoa_remetente: String(row['nm_pessoa_remetente'] || ''),
       nm_cidade_origem: String(row['nm_cidade_origem'] || ''),
@@ -47,8 +47,8 @@ export class OperacaoService {
       nm_produto: String(row['nm_produto'] || ''),
       vl_peso: Number(row['vl_peso'] || 0),
       vl_tarifa: Number(row['vl_tarifa'] || 0),
-      vl_total: Number(row['vl_total'] || 0),
-      nr_nf: String(row['nr_nf'] || ''),
+      vl_total: row['vl_total'] ? Number(row['vl_total']) : null,
+      nr_nf: row['nr_nf'] ? String(row['nr_nf']).trim() : null,
       ds_placa: String(row['ds_placa'] || ''),
       nm_pessoa_matriz: String(row['nm_pessoa_matriz'] || ''),
       nr_contrato: String(row['nr_contrato'] || ''),
@@ -59,7 +59,7 @@ export class OperacaoService {
       nm_motorista: String(row['nm_motorista'] || ''),
     }));
 
-    // Usa skipDuplicates para ignorar registros que já possuem o mesmo nr_ctrc
+    // Usa skipDuplicates para ignorar registros que já possuem a mesma combinação de campos únicos
     const resultado = await prisma.operacao.createMany({ 
       data: operacoes,
       skipDuplicates: true 

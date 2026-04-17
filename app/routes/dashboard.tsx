@@ -1,23 +1,35 @@
-// /home/penta/Logicell/frontend/src/pages/DashboardView.tsx
-import React, { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { TrendingUp, Package, Users, Wallet, Calendar, FileSpreadsheet } from 'lucide-react';
+import { useLoaderData } from "react-router";
+import { OperacaoService } from "~/services/operacao.server";
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell 
+} from "recharts";
+import { Wallet, Package, Users, FileSpreadsheet } from "lucide-react";
+import { useState, useEffect } from "react";
 
 const CORES = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-export const DashboardView: React.FC = () => {
-  const [estatisticas, setStats] = useState<any>(null);
-  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+export async function loader() {
+  return await OperacaoService.getDashboard();
+}
+
+export default function Dashboard() {
+  const estatisticas = useLoaderData<typeof loader>();
+  const [isDark, setIsDark] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    fetch('/api/dashboard').then(r => r.json()).then(setStats);
+    setIsMounted(true);
+    setIsDark(document.documentElement.classList.contains('dark'));
     const observer = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
 
   if (!estatisticas || !estatisticas.porAgencia) return (
-    <div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-slate-400 font-bold text-xl tracking-widest">CARREGANDO...</div></div>
+    <div className="flex-1 flex items-center justify-center">
+      <div className="animate-pulse text-slate-400 font-bold text-xl tracking-widest uppercase">CARREGANDO...</div>
+    </div>
   );
 
   const cards = [
@@ -28,7 +40,7 @@ export const DashboardView: React.FC = () => {
   ];
 
   const dadosBarra = estatisticas.porAgencia.map((item: any) => ({
-    name: (item.nm_agencia || '').split('-')[0].trim().substring(0, 12),
+    name: (item.nm_agencia || '').split('-')[0].trim(),
     total: Number(item._sum.vl_total || 0)
   }));
 
@@ -56,32 +68,44 @@ export const DashboardView: React.FC = () => {
         {/* Gráfico de Barras */}
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-10">Faturamento por Agência (R$)</h3>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dadosBarra} margin={{ bottom: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#334155" : "#e2e8f0"} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: textColor, fontSize: 10, fontWeight: 700 }} dy={15} interval={0} angle={-25} textAnchor="end" />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: textColor, fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `R$ ${v / 1000}k`} />
-                <Tooltip cursor={{ fill: isDark ? '#33415555' : '#6366f111' }} contentStyle={{ borderRadius: '20px', backgroundColor: isDark ? '#0f172a' : '#fff', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)' }} />
-                <Bar dataKey="total" fill="#6366f1" radius={[10, 10, 0, 0]} barSize={30} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-[350px] w-full min-h-[350px]">
+            {isMounted && (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={dadosBarra} margin={{ top: 20, right: 0, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#334155" : "#e2e8f0"} />
+                  <XAxis dataKey="name" hide={true} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: textColor, fontSize: 10, fontWeight: 600 }} tickFormatter={(v) => `R$ ${v / 1000}k`} />
+                  <Tooltip cursor={{ fill: isDark ? '#33415555' : '#6366f111' }} contentStyle={{ borderRadius: '20px', backgroundColor: isDark ? '#0f172a' : '#fff', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)' }} />
+                  <Bar dataKey="total" fill="#6366f1" radius={[10, 10, 0, 0]} barSize={45} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        {/* Gráfico de Pizza */}
+        {/* Gráfico de Pizza - AGORA SEM LEGENDA E GIGANTE */}
         <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Distribuição por Produto</h3>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={dadosPizza} innerRadius={90} outerRadius={130} paddingAngle={8} dataKey="value" stroke="none">
-                  {dadosPizza.map((_:any, index:number) => <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: '20px', backgroundColor: isDark ? '#0f172a' : '#fff', border: 'none' }} />
-                <Legend verticalAlign="bottom" layout="horizontal" wrapperStyle={{ paddingTop: '30px', fontSize: '10px', fontWeight: 700 }} />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="h-[350px] w-full min-h-[350px]">
+            {isMounted && (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <PieChart>
+                  <Pie 
+                    data={dadosPizza} 
+                    innerRadius={100} 
+                    outerRadius={150} 
+                    paddingAngle={8} 
+                    dataKey="value" 
+                    stroke="none"
+                    cx="50%"
+                    cy="50%"
+                  >
+                    {dadosPizza.map((_:any, index:number) => <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: '20px', backgroundColor: isDark ? '#0f172a' : '#fff', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
@@ -109,4 +133,4 @@ export const DashboardView: React.FC = () => {
       </div>
     </div>
   );
-};
+}

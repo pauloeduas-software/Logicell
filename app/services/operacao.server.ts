@@ -1,0 +1,212 @@
+import { prisma } from "./db.server";
+import * as XLSX from "xlsx";
+import crypto from "crypto";
+
+export class OperacaoService {
+  private static padronizarAgencia(nome: string): string {
+    if (!nome) return "";
+    return nome.toUpperCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, " - ").trim();
+  }
+
+  static async processarPlanilha(buffer: Buffer, originalName: string) {
+    const hash = crypto.createHash("md5").update(buffer).digest("hex");
+    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rawData: any[] = XLSX.utils.sheet_to_json(sheet, { range: 1 });
+
+    if (rawData.length === 0) throw new Error("Planilha vazia");
+
+    const importacao = await prisma.importacao.create({
+      data: { nomeArquivo: originalName, usuario: "Sistema", qtdRegistros: rawData.length, hashArquivo: hash }
+    });
+
+    const operacoes = rawData.map((row) => {
+      const get = (keys: string[]) => {
+        for (const key of keys) {
+          const val = row[key];
+          if (val !== undefined && val !== null && String(val).trim() !== "") return val;
+        }
+        return null;
+      };
+
+      return {
+        importacaoId: importacao.id,
+        nm_agencia: this.padronizarAgencia(String(get(["nm_agencia", "AGÊNCIA", "AGENCIA"]) || "DESCONHECIDA")),
+        dt_emissao_: get(["dt_emissao_", "DATA EMISSÃO", "EMISSÃO", "EMISSAO"]) ? new Date(get(["dt_emissao_", "DATA EMISSÃO", "EMISSÃO", "EMISSAO"]) as any) : null,
+        cd_pessoa_pagador: String(get(["cd_pessoa_pagador", "CÓD. PAGADOR", "COD PAGADOR", "CÓDIGO"]) || ""),
+        nm_pessoa_pagador: String(get(["nm_pessoa_pagador", "PAGADOR", "CLIENTE"]) || ""),
+        nr_cpf_cnpj_raiz: String(get(["nr_cpf_cnpj_raiz", "CNPJ RAIZ", "RAIZ"]) || ""),
+        nr_cpf_cnpj_pagador: String(get(["nr_cpf_cnpj_pagador", "CPF/CNPJ PAGADOR", "CNPJ"]) || ""),
+        nr_ctrc: String(get(["nr_ctrc", "CTRC", "CTE", "CT-E"]) || "0").trim(),
+        id_tipo_documento: String(get(["id_tipo_documento", "TIPO DOC", "TIPO"]) || ""),
+        nm_pessoa_remetente: String(get(["nm_pessoa_remetente", "REMETENTE"]) || ""),
+        nm_cidade_origem: String(get(["nm_cidade_origem", "CIDADE ORIGEM", "ORIGEM"]) || ""),
+        ds_sigla_origem: String(get(["ds_sigla_origem", "UF ORIGEM", "UF_ORI"]) || ""),
+        nm_pessoa_destinatario: String(get(["nm_pessoa_destinatario", "DESTINATÁRIO", "DESTINATARIO"]) || ""),
+        nm_cidade_destino: String(get(["nm_cidade_destino", "CIDADE DESTINO", "DESTINO"]) || ""),
+        ds_sigla_destino: String(get(["ds_sigla_destino", "UF DESTINO", "UF_DES"]) || ""),
+        nm_produto: String(get(["nm_produto", "PRODUTO"]) || ""),
+        vl_peso: Number(get(["vl_peso", "PESO", "PESO REAL"]) || 0),
+        vl_tarifa: Number(get(["vl_tarifa", "TARIFA"]) || 0),
+        vl_total: get(["vl_total", "VALOR TOTAL", "TOTAL", "VALOR"]) ? Number(get(["vl_total", "VALOR TOTAL", "TOTAL", "VALOR"])) : null,
+        nr_nf: get(["nr_nf", "NF", "NOTA FISCAL"]) ? String(get(["nr_nf", "NF", "NOTA FISCAL"])).trim() : null,
+        ds_placa: String(get(["ds_placa", "PLACA"]) || ""),
+        nm_pessoa_matriz: String(get(["nm_pessoa_matriz", "MATRIZ"]) || ""),
+        nr_contrato: String(get(["nr_contrato", "CONTRATO"]) || ""),
+        nr_chave_acesso: String(get(["nr_chave_acesso", "CHAVE ACESSO", "CHAVE DE ACESSO"]) || ""),
+        nm_pessoa_usuario_lancamento: String(get(["nm_pessoa_usuario_lancamento", "USUÁRIO", "USUARIO"]) || ""),
+        id_tipo_ctrc: String(get(["id_tipo_ctrc", "TIPO CTE", "TIPO CTe"]) || ""),
+        nm_proprietario_posse_cavalo: String(get(["nm_proprietario_posse_cavalo", "PROPRIETÁRIO", "PROPRIETARIO"]) || ""),
+        nm_motorista: String(get(["nm_motorista", "MOTORISTA"]) || ""),
+        status: get(["status", "ANEXADO ATUA TICKET/NF"]) ? String(get(["status", "ANEXADO ATUA TICKET/NF"])).trim().toUpperCase() : null,
+        comentarios: get(["comentarios", "OBSERVAÇÃO", "OBSERVACAO"]) ? String(get(["comentarios", "OBSERVAÇÃO", "OBSERVACAO"])).trim() : null,
+      };
+    });
+
+    const resultado = await prisma.operacao.createMany({ 
+      data: operacoes as any,
+      skipDuplicates: true 
+    });
+
+    return { 
+      totalLido: rawData.length, 
+      adicionados: resultado.count, 
+      ignorados: rawData.length - resultado.count,
+      importId: importacao.id 
+    };
+  }
+
+  static async listarOperacoes(filtros: any) {
+    const { page = 1, limit = 100, search, pastaId } = filtros;
+    const p = Math.max(1, Number(page) || 1);
+    const l = Math.max(1, Number(limit) || 100);
+    const offset = (p - 1) * l;
+    
+    const whereClause = this.construirWhere(search, pastaId, filtros);
+    
+    const data: any[] = await prisma.$queryRawUnsafe(`
+      SELECT o.* FROM "Operacao" o
+      ${whereClause.sql}
+      ORDER BY o.id DESC
+      LIMIT ${l} OFFSET ${offset}
+    `, ...whereClause.params);
+
+    const sanitizedData = data.map(item => ({
+      ...item,
+      vl_total: item.vl_total ? Number(item.vl_total) : null,
+      vl_peso: item.vl_peso ? Number(item.vl_peso) : 0,
+      vl_tarifa: item.vl_tarifa ? Number(item.vl_tarifa) : 0
+    }));
+
+    const totalRes: any = await prisma.$queryRawUnsafe(`
+      SELECT COUNT(*) as count FROM "Operacao" o ${whereClause.sql}
+    `, ...whereClause.params);
+
+    const total = Number(totalRes[0].count);
+    
+    // RETORNANDO O LIMIT PARA O CÁLCULO DO Nº NA TABELA
+    return { 
+      data: sanitizedData, 
+      meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } 
+    };
+  }
+
+  static async listarIds(filtros: any) {
+    const { search, pastaId } = filtros;
+    const whereClause = this.construirWhere(search, pastaId, filtros);
+    const ids: any[] = await prisma.$queryRawUnsafe(`SELECT id FROM "Operacao" o ${whereClause.sql}`, ...whereClause.params);
+    return ids.map(i => i.id);
+  }
+
+  private static construirWhere(search: string, pastaId: any, filtros: any) {
+    const whereAnd: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (search) {
+      const s = `%${search}%`;
+      whereAnd.push(`(
+        nm_agencia ILIKE $${idx} OR
+        cd_pessoa_pagador ILIKE $${idx} OR
+        nm_pessoa_pagador ILIKE $${idx} OR
+        nr_cpf_cnpj_raiz ILIKE $${idx} OR
+        nr_cpf_cnpj_pagador ILIKE $${idx} OR
+        nr_ctrc ILIKE $${idx} OR
+        id_tipo_documento ILIKE $${idx} OR
+        nm_pessoa_remetente ILIKE $${idx} OR
+        nm_cidade_origem ILIKE $${idx} OR
+        ds_sigla_origem ILIKE $${idx} OR
+        nm_pessoa_destinatario ILIKE $${idx} OR
+        nm_cidade_destino ILIKE $${idx} OR
+        ds_sigla_destino ILIKE $${idx} OR
+        nm_produto ILIKE $${idx} OR
+        nr_nf ILIKE $${idx} OR
+        ds_placa ILIKE $${idx} OR
+        nm_pessoa_matriz ILIKE $${idx} OR
+        nr_contrato ILIKE $${idx} OR
+        nr_chave_acesso ILIKE $${idx} OR
+        nm_pessoa_usuario_lancamento ILIKE $${idx} OR
+        id_tipo_ctrc ILIKE $${idx} OR
+        nm_proprietario_posse_cavalo ILIKE $${idx} OR
+        nm_motorista ILIKE $${idx} OR
+        status ILIKE $${idx} OR
+        comentarios ILIKE $${idx} OR
+        TO_CHAR(dt_emissao_, 'DD/MM/YYYY') ILIKE $${idx} OR
+        CAST(vl_total AS TEXT) ILIKE $${idx} OR
+        CAST(vl_peso AS TEXT) ILIKE $${idx} OR
+        CAST(vl_tarifa AS TEXT) ILIKE $${idx}
+      )`);
+      params.push(s); idx++;
+    }
+
+    if (filtros.nm_agencia) { whereAnd.push(`nm_agencia = $${idx}`); params.push(filtros.nm_agencia); idx++; }
+    if (filtros.nm_pessoa_pagador) { whereAnd.push(`nm_pessoa_pagador ILIKE $${idx}`); params.push(`%${filtros.nm_pessoa_pagador}%`); idx++; }
+    if (filtros.nm_pessoa_remetente) { whereAnd.push(`nm_pessoa_remetente ILIKE $${idx}`); params.push(`%${filtros.nm_pessoa_remetente}%`); idx++; }
+    if (filtros.nm_pessoa_destinatario) { whereAnd.push(`nm_pessoa_destinatario ILIKE $${idx}`); params.push(`%${filtros.nm_pessoa_destinatario}%`); idx++; }
+    if (filtros.nm_produto) { whereAnd.push(`nm_produto ILIKE $${idx}`); params.push(`%${filtros.nm_produto}%`); idx++; }
+    if (filtros.ds_placa) { whereAnd.push(`ds_placa ILIKE $${idx}`); params.push(`%${filtros.ds_placa}%`); idx++; }
+    if (filtros.min_peso) { whereAnd.push(`vl_peso >= $${idx}`); params.push(Number(filtros.min_peso)); idx++; }
+    if (filtros.max_peso) { whereAnd.push(`vl_peso <= $${idx}`); params.push(Number(filtros.max_peso)); idx++; }
+    if (filtros.min_total) { whereAnd.push(`vl_total >= $${idx}`); params.push(Number(filtros.min_total)); idx++; }
+    if (filtros.max_total) { whereAnd.push(`vl_total <= $${idx}`); params.push(Number(filtros.max_total)); idx++; }
+
+    if (pastaId && pastaId !== "null") { whereAnd.push(`"pastaId" = $${idx}`); params.push(Number(pastaId)); idx++; }
+    else { whereAnd.push(`"pastaId" IS NULL`); }
+
+    return { sql: whereAnd.length > 0 ? `WHERE ${whereAnd.join(" AND ")}` : "", params };
+  }
+
+  static async getDashboard() {
+    const [totais, porAgencia, porProduto, ultimasImportacoes] = await Promise.all([
+      prisma.operacao.aggregate({ _sum: { vl_total: true, vl_peso: true }, _count: { id: true } }),
+      prisma.operacao.groupBy({ by: ["nm_agencia"], _sum: { vl_total: true }, orderBy: { _sum: { vl_total: "desc" } }, take: 15 }),
+      prisma.operacao.groupBy({ by: ["nm_produto"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 15 }),
+      prisma.importacao.findMany({ orderBy: { createdAt: "desc" }, take: 5 })
+    ]);
+
+    return { 
+      totais: {
+        _sum: {
+          vl_total: Number(totais._sum.vl_total || 0),
+          vl_peso: Number(totais._sum.vl_peso || 0)
+        },
+        _count: { id: totais._count.id }
+      },
+      porAgencia: porAgencia.map(a => ({
+        nm_agencia: a.nm_agencia,
+        _sum: { vl_total: Number(a._sum.vl_total || 0) }
+      })),
+      porProduto,
+      ultimasImportacoes 
+    };
+  }
+
+  static async contarInbox() { return prisma.operacao.count({ where: { pastaId: null } }); }
+  static async buscarAgencias() {
+    const ags = await prisma.operacao.groupBy({ by: ["nm_agencia"], where: { nm_agencia: { not: "" } }, orderBy: { nm_agencia: "asc" } });
+    return ags.map(a => a.nm_agencia);
+  }
+  static async bulkActionPasta(ids: number[], pastaId: number | null) { return prisma.operacao.updateMany({ where: { id: { in: ids } }, data: { pastaId } }); }
+  static async bulkDelete(ids: number[]) { return prisma.operacao.deleteMany({ where: { id: { in: ids } } }); }
+  static async update(id: number, data: any) { return prisma.operacao.update({ where: { id }, data }); }
+}

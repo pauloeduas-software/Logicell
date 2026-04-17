@@ -1,0 +1,24 @@
+{
+  "include": [
+    "react-router.config.ts",
+    ".react-router/types/**/*",
+    "app/**/*"
+  ],
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "~/*": ["./app/*"]
+    },
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx"
+  }
+}

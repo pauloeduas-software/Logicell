@@ -45,7 +45,7 @@ model Operacao {
 
   // Relacionamentos para as novas funcionalidades
   importacaoId                  Int?
-  importacao                    Importacao? @relation(fields: [importacaoId], references: [id])
+  importacao                   Importacao? @relation(fields: [importacaoId], references: [id])
   auditorias                    Auditoria[]
   
   pastaId                       Int?
@@ -65,7 +65,7 @@ model Importacao {
   nomeArquivo   String
   usuario       String
   qtdRegistros  Int
-  hashArquivo   String?    // Removido @unique para permitir recuperação de dados
+  hashArquivo   String?
   createdAt     DateTime   @default(now())
   operacoes     Operacao[]
 }

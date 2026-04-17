@@ -1,8 +1,41 @@
+# Dependências
 node_modules/
-dist/
+/node_modules
+/.react-router
+
+# Builds e Saídas
+/build
+/dist
+/public/build
+
+# Variáveis de Ambiente (CRÍTICO)
 .env
 .env.local
-.DS_Store
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 *.log
-.prisma/
-build/
+
+# Caches e Temporários
+.cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+.parcel-cache
+.turbo
+.DS_Store
+
+# Prisma e Banco de Dados Local
+/.prisma
+/prisma/*.db
+/prisma/*.db-journal
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

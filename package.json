@@ -1,17 +1,44 @@
 {
-  "name": "logicell-monorepo",
+  "name": "logicell",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run start:api\" \"npm run start:web\"",
-    "start:api": "cd apps/api && bun run dev",
-    "start:web": "cd apps/web && bun run dev",
-    "prisma:generate": "cd apps/api && bunx prisma generate",
-    "prisma:migrate": "cd apps/api && bunx prisma migrate dev"
+    "dev": "react-router dev",
+    "build": "react-router build",
+    "start": "react-router-serve ./build/server/index.js",
+    "typecheck": "react-router typegen && tsc",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev"
   },
-  "workspaces": [
-    "apps/*"
-  ],
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "@react-router/node": "7.14.1",
+    "@react-router/serve": "7.14.1",
+    "clsx": "2.1.1",
+    "isbot": "5.1.22",
+    "lucide-react": "0.473.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-router": "7.14.1",
+    "recharts": "3.8.1",
+    "tailwind-merge": "3.5.0",
+    "xlsx": "0.18.5"
+  },
+  "overrides": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "@react-router/dev": "7.14.1",
+    "@types/node": "22.13.0",
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.5.1",
+    "prisma": "5.22.0",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.7.3",
+    "vite": "6.0.11",
+    "vite-tsconfig-paths": "5.1.4"
   }
 }

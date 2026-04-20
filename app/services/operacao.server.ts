@@ -3,12 +3,22 @@ import * as XLSX from "xlsx";
 import crypto from "crypto";
 
 export class OperacaoService {
+  private static agenciasCache: string[] | null = null;
+  private static agenciasCacheTime = 0;
+  private static readonly CACHE_TTL = 1000 * 60 * 5; // 5 minutos
+
+  private static invalidarCache() {
+    this.agenciasCache = null;
+    this.agenciasCacheTime = 0;
+  }
+
   private static padronizarAgencia(nome: string): string {
     if (!nome) return "";
     return nome.toUpperCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, " - ").trim();
   }
 
   static async processarPlanilha(buffer: Buffer, originalName: string) {
+    this.invalidarCache();
     const hash = crypto.createHash("md5").update(buffer).digest("hex");
     const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -127,34 +137,16 @@ export class OperacaoService {
       const s = `%${search}%`;
       whereAnd.push(`(
         nm_agencia ILIKE $${idx} OR
-        cd_pessoa_pagador ILIKE $${idx} OR
         nm_pessoa_pagador ILIKE $${idx} OR
-        nr_cpf_cnpj_raiz ILIKE $${idx} OR
-        nr_cpf_cnpj_pagador ILIKE $${idx} OR
         nr_ctrc ILIKE $${idx} OR
-        id_tipo_documento ILIKE $${idx} OR
         nm_pessoa_remetente ILIKE $${idx} OR
-        nm_cidade_origem ILIKE $${idx} OR
-        ds_sigla_origem ILIKE $${idx} OR
         nm_pessoa_destinatario ILIKE $${idx} OR
-        nm_cidade_destino ILIKE $${idx} OR
-        ds_sigla_destino ILIKE $${idx} OR
         nm_produto ILIKE $${idx} OR
         nr_nf ILIKE $${idx} OR
         ds_placa ILIKE $${idx} OR
-        nm_pessoa_matriz ILIKE $${idx} OR
-        nr_contrato ILIKE $${idx} OR
-        nr_chave_acesso ILIKE $${idx} OR
-        nm_pessoa_usuario_lancamento ILIKE $${idx} OR
-        id_tipo_ctrc ILIKE $${idx} OR
-        nm_proprietario_posse_cavalo ILIKE $${idx} OR
         nm_motorista ILIKE $${idx} OR
         status ILIKE $${idx} OR
-        comentarios ILIKE $${idx} OR
-        TO_CHAR(dt_emissao_, 'DD/MM/YYYY') ILIKE $${idx} OR
-        CAST(vl_total AS TEXT) ILIKE $${idx} OR
-        CAST(vl_peso AS TEXT) ILIKE $${idx} OR
-        CAST(vl_tarifa AS TEXT) ILIKE $${idx}
+        comentarios ILIKE $${idx}
       )`);
       params.push(s); idx++;
     }
@@ -202,11 +194,29 @@ export class OperacaoService {
   }
 
   static async contarInbox() { return prisma.operacao.count({ where: { pastaId: null } }); }
+
   static async buscarAgencias() {
+    if (this.agenciasCache && Date.now() - this.agenciasCacheTime < this.CACHE_TTL) {
+      return this.agenciasCache;
+    }
     const ags = await prisma.operacao.groupBy({ by: ["nm_agencia"], where: { nm_agencia: { not: "" } }, orderBy: { nm_agencia: "asc" } });
-    return ags.map(a => a.nm_agencia);
+    this.agenciasCache = ags.map(a => a.nm_agencia);
+    this.agenciasCacheTime = Date.now();
+    return this.agenciasCache;
   }
-  static async bulkActionPasta(ids: number[], pastaId: number | null) { return prisma.operacao.updateMany({ where: { id: { in: ids } }, data: { pastaId } }); }
-  static async bulkDelete(ids: number[]) { return prisma.operacao.deleteMany({ where: { id: { in: ids } } }); }
-  static async update(id: number, data: any) { return prisma.operacao.update({ where: { id }, data }); }
+
+  static async bulkActionPasta(ids: number[], pastaId: number | null) {
+    this.invalidarCache();
+    return prisma.operacao.updateMany({ where: { id: { in: ids } }, data: { pastaId } });
+  }
+
+  static async bulkDelete(ids: number[]) {
+    this.invalidarCache();
+    return prisma.operacao.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  static async update(id: number, data: any) {
+    this.invalidarCache();
+    return prisma.operacao.update({ where: { id }, data });
+  }
 }

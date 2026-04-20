@@ -1,8 +1,9 @@
 // /home/penta/Logicell/backend/prisma/schema.prisma
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -58,6 +59,8 @@ model Operacao {
   @@index([nm_agencia])
   @@index([nm_produto])
   @@index([nm_motorista])
+  @@index([pastaId])
+  @@index([dt_emissao_])
 }
 
 model Importacao {

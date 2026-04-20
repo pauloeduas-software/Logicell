@@ -7,13 +7,24 @@ import {
   useLoaderData,
   useFetcher,
   NavLink,
+  useNavigation,
 } from "react-router";
-import type { LinksFunction } from "react-router";
+import type { LinksFunction, ShouldRevalidateFunction } from "react-router";
 import { useState, useEffect, createContext, useContext } from "react";
 import { 
   Truck, Inbox, Plus, Edit2, Trash2, ChevronLeft, ChevronRight, LayoutDashboard, Folder, X, Sun, Moon, CheckCircle2, AlertCircle, Info, AlertTriangle
+} from "lucide-center"; // Nota: deve ser lucide-react, corrigirei abaixo
+import { 
+  Truck as TruckIcon, Inbox as InboxIcon, Plus as PlusIcon, Edit2 as EditIcon, Trash2 as TrashIcon, 
+  ChevronLeft as LeftIcon, ChevronRight as RightIcon, LayoutDashboard as DashIcon, Folder as FolderIcon, 
+  X as XIcon, Sun as SunIcon, Moon as MoonIcon, CheckCircle2 as CheckIcon, AlertCircle as AlertIcon, 
+  Info as InfoIcon, AlertTriangle as WarnIcon
 } from "lucide-react";
 import "./tailwind.css";
+
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -47,6 +58,14 @@ export async function loader() {
   }
 }
 
+// SÓ TRAVA A REVALIDAÇÃO SE FOR A MESMA PÁGINA (PAGINAÇÃO/FILTRO)
+// SE MUDAR O PATHNAME (EX: PASTA 1 PARA PASTA 2), PRECISA REVALIDAR!
+export const shouldRevalidate: ShouldRevalidateFunction = ({ currentUrl, nextUrl, formMethod, defaultShouldRevalidate }) => {
+  if (formMethod && formMethod !== "GET") return true;
+  if (currentUrl.pathname !== nextUrl.pathname) return true;
+  return false;
+};
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className="dark">
@@ -67,6 +86,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const data = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
   const pastas = data?.pastas || [];
   const totalInbox = data?.totalInbox || 0;
   const fetcher = useFetcher();
@@ -128,9 +148,9 @@ export default function App() {
                 t.type === 'error' ? 'bg-rose-600 border-rose-500 text-white' : 
                 'bg-blue-600 border-blue-500 text-white'
               }`}>
-                {t.type === 'success' ? <CheckCircle2 size={20} /> : t.type === 'error' ? <AlertCircle size={20} /> : <Info size={20} />}
+                {t.type === 'success' ? <CheckIcon size={20} /> : t.type === 'error' ? <AlertIcon size={20} /> : <InfoIcon size={20} />}
                 <p className="text-sm font-bold tracking-tight">{t.msg}</p>
-                <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} className="ml-2 hover:opacity-70"><X size={16} strokeWidth={3} /></button>
+                <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} className="ml-2 hover:opacity-70"><XIcon size={16} strokeWidth={3} /></button>
               </div>
             </div>
           ))}
@@ -143,8 +163,8 @@ export default function App() {
                 modal.variant === 'danger' || modal.variant === 'error' ? 'bg-rose-100 text-rose-600' : 
                 modal.variant === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
               }`}>
-                {modal.variant === 'danger' || modal.variant === 'error' ? <AlertTriangle size={32} /> : 
-                 modal.variant === 'success' ? <CheckCircle2 size={32} /> : <Info size={32} />}
+                {modal.variant === 'danger' || modal.variant === 'error' ? <WarnIcon size={32} /> : 
+                 modal.variant === 'success' ? <CheckIcon size={32} /> : <InfoIcon size={32} />}
               </div>
               <h2 className="text-xl font-black mb-2 text-slate-800 dark:text-white uppercase tracking-tight">{modal.title}</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed mb-8 whitespace-pre-line">{modal.message}</p>
@@ -170,7 +190,7 @@ export default function App() {
           <div className="h-[72px] flex items-center px-5 mb-4 border-b border-slate-100 dark:border-slate-800/50 shrink-0">
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="p-2 bg-blue-600 rounded-xl text-white shrink-0 shadow-lg shadow-blue-500/20">
-                <Truck size={22} strokeWidth={2.5} />
+                <TruckIcon size={22} strokeWidth={2.5} />
               </div>
               {!isCollapsed && <h1 className="text-xl font-black uppercase tracking-tighter">Logicell</h1>}
             </div>
@@ -180,16 +200,16 @@ export default function App() {
             <div>
               <p className={`${isCollapsed ? 'text-center' : 'px-4'} text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4`}>Principal</p>
               <div className="space-y-1">
-                <NavLink to="/" end className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-                  <LayoutDashboard size={20} className="shrink-0" />
+                <NavLink to="/" prefetch="intent" end className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                  <DashIcon size={20} className="shrink-0" />
                   {!isCollapsed && <span>Painel Geral</span>}
                 </NavLink>
 
-                <NavLink to="/caixa-de-entrada" className={({ isActive }) => `flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                <NavLink to="/caixa-de-entrada" prefetch="intent" className={({ isActive }) => `flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                   {({ isActive: linkActive }) => (
                     <>
                       <div className="flex items-center gap-3">
-                        <Inbox size={20} className="shrink-0" />
+                        <InboxIcon size={20} className="shrink-0" />
                         {!isCollapsed && <span>Caixa de Entrada</span>}
                       </div>
                       {!isCollapsed && totalInbox > 0 && (
@@ -204,7 +224,7 @@ export default function App() {
             <div>
               <div className={`${isCollapsed ? 'justify-center' : 'px-4 justify-between'} flex items-center mb-4`}>
                 {!isCollapsed && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pastas</p>}
-                {!isCollapsed && <button onClick={() => setIsAddingFolder(true)} className="text-blue-500"><Plus size={16} strokeWidth={3} /></button>}
+                {!isCollapsed && <button onClick={() => setIsAddingFolder(true)} className="text-blue-500"><PlusIcon size={16} strokeWidth={3} /></button>}
               </div>
 
               <div className="space-y-1">
@@ -221,18 +241,18 @@ export default function App() {
                         <input autoFocus value={editingValue} onChange={e => setEditingValue(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitRename(p.id)} onBlur={() => setEditingFolderId(null)} className="w-full bg-white dark:bg-slate-800 border-2 border-indigo-500 rounded-xl px-3 py-1.5 text-xs font-bold outline-none" />
                       </div>
                     ) : (
-                      <NavLink to={`/pastas/${p.id}`} className={({ isActive }) => `flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                      <NavLink to={`/pastas/${p.id}`} prefetch="intent" className={({ isActive }) => `flex items-center justify-between px-4 py-3 rounded-2xl text-sm font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                         {({ isActive: linkActive }) => (
                           <>
                             <div className="flex items-center gap-3 overflow-hidden">
-                              <Folder size={20} className="shrink-0" />
+                              <FolderIcon size={20} className="shrink-0" />
                               {!isCollapsed && <span className="truncate">{p.nome}</span>}
                             </div>
                             {!isCollapsed && (
                               <div className="flex items-center gap-2">
                                 {p._count?.operacoes > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded-lg ${linkActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-50'}`}>{p._count.operacoes}</span>}
                                 <div className="hidden group-hover/item:flex items-center gap-1">
-                                  <button onClick={(e) => { e.preventDefault(); setEditingFolderId(p.id); setEditingValue(p.nome); }} className="p-1 hover:text-white"><Edit2 size={12} /></button>
+                                  <button onClick={(e) => { e.preventDefault(); setEditingFolderId(p.id); setEditingValue(p.nome); }} className="p-1 hover:text-white"><EditIcon size={12} /></button>
                                   <button onClick={(e) => { 
                                     e.preventDefault(); 
                                     confirmAction({
@@ -244,7 +264,7 @@ export default function App() {
                                         showToast("Pasta excluída.", "info");
                                       }
                                     });
-                                  }} className="p-1 hover:text-rose-400"><Trash2 size={12} /></button>
+                                  }} className="p-1 hover:text-rose-400"><TrashIcon size={12} /></button>
                                 </div>
                               </div>
                             )}
@@ -260,17 +280,20 @@ export default function App() {
 
           <div className="p-3 border-t border-slate-100 dark:border-slate-800/50 space-y-2 shrink-0">
             <button onClick={() => setIsDark(!isDark)} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
-              {isDark ? <Sun size={20} className="text-amber-400 shrink-0" /> : <Moon size={20} className="text-blue-600 shrink-0" />}
+              {isDark ? <SunIcon size={20} className="text-amber-400 shrink-0" /> : <MoonIcon size={20} className="text-blue-600 shrink-0" />}
               {!isCollapsed && <span>Modo {isDark ? 'Claro' : 'Escuro'}</span>}
             </button>
             <button onClick={() => setIsCollapsed(!isCollapsed)} className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-slate-400 hover:text-blue-500 transition-all">
-              {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+              {isCollapsed ? <RightIcon size={20} /> : <LeftIcon size={20} />}
               {!isCollapsed && <span>Recolher</span>}
             </button>
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950 p-6 overflow-hidden h-full">
+        <main className={cn(
+          "flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-950 p-6 overflow-hidden h-full transition-all duration-300",
+          navigation.state === "loading" && "opacity-60 grayscale-[0.5] pointer-events-none"
+        )}>
           <Outlet />
         </main>
       </div>

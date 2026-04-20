@@ -1,24 +1,24 @@
 # 🚛 Logicell
 
 [![React Router](https://img.shields.io/badge/React_Router-v7-CA4245?logo=react-router)](https://reactrouter.com)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth-3ECF8E?logo=supabase)](https://supabase.com)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io)
-[![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Bun](https://img.shields.io/badge/Bun-Runtime-f9f1e1?logo=bun)](https://bun.sh)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 
-O **Logicell** é uma plataforma full-stack para gerenciamento de operações logísticas. O sistema centraliza o processamento de planilhas complexas (CTes, Notas Fiscais), organização em pastas e análise de faturamento através de um Dashboard executivo.
+O **Logicell** é uma plataforma corporativa premium para gerenciamento de operações logísticas. O sistema centraliza o processamento de planilhas complexas, organização em pastas, e análise financeira avançada através de um Dashboard de alta densidade (Compact Premier).
 
 ---
 
 ## ✨ Funcionalidades Principais
 
-- **📦 Importação Inteligente (Excel):** Mapeamento de colunas de planilhas xls e xlsx.
-- **🛡️ Integridade de Dados:** Prevenção de duplicatas via chave única composta (Agência, CTe, NF, Valor, Data) e MD5 de arquivo.
-- **📂 Organização por Pastas:** Sistema 1:N para mover operações entre pastas personalizadas ou manter na Caixa de Entrada.
-- **🔍 Busca Universal (Google-style):** Motor de busca SQL bruto que varre todos os 29 campos simultaneamente.
-- **📊 Dashboard Executivo:** Gráficos interativos (Recharts) de faturamento por agência e distribuição por produto.
-- **🛠️ Edição Inline:** Atualização rápida de Status (11 opções) e Observações diretamente na tabela.
-- **🚨 Feedback Centralizado:** Modais de confirmação e Toasts elegantes para todas as operações críticas.
-- **🔄 Modo de Recuperação:** Permite re-importar dados excluídos sem gerar duplicatas no banco.
+- **🔐 Autenticação Segura (Supabase):** Sistema de login corporativo com proteção de rotas via Server-Side Auth.
+- **📦 Importação Inteligente (Excel):** Mapeamento automático de colunas de planilhas xls e xlsx para o banco de dados.
+- **🛡️ Integridade de Dados:** Prevenção de duplicatas via chave única composta e MD5 de arquivo.
+- **📂 Organização por Pastas:** Gerenciamento dinâmico de itens entre pastas personalizadas ou Caixa de Entrada.
+- **📊 Dashboard Compact Premier:** Gráficos interativos (Recharts) de faturamento, volume por agência, mix de produtos e geografia do fluxo logístico.
+- **🔍 Busca Universal e Filtros:** Motor de busca SQL rápido e sistema de filtros avançados (Peso, Valor, Status).
+- **🛠️ Edição Inline & Auditoria:** Atualização rápida de Status e Observações com rastreamento de mudanças.
 
 ---
 
@@ -27,13 +27,12 @@ O **Logicell** é uma plataforma full-stack para gerenciamento de operações lo
 | Categoria | Tecnologia |
 | :--- | :--- |
 | **Framework** | React Router v7 (Framework Mode) |
-| **Runtime** | Node.js (Compatível com Bun) |
+| **Auth & Backend** | Supabase (SSR Auth & Storage) |
 | **Linguagem** | TypeScript |
 | **Banco de Dados** | PostgreSQL |
 | **ORM** | Prisma |
-| **Estilização** | Tailwind CSS |
-| **Gráficos** | Recharts |
-| **Ícones** | Lucide React |
+| **Runtime** | Bun v1.3+ |
+| **Estilização** | Tailwind CSS (Design Premium) |
 
 ---
 
@@ -41,16 +40,16 @@ O **Logicell** é uma plataforma full-stack para gerenciamento de operações lo
 
 ```text
 ├── app/
-│   ├── routes/        # Rotas Full-stack (Dashboard, Inbox, Pastas)
-│   ├── services/      # Lógica de Negócio (Busca Universal, Excel Parsing)
-│   ├── components/    # Componentes UI Reutilizáveis
-│   ├── root.tsx       # Estrutura global, Modais e Toasts
-│   └── entry.client/server.tsx # Pontos de entrada do Framework
+│   ├── context/       # AuthProvider (Supabase Context)
+│   ├── routes/        # Rotas Full-stack (Dashboard, Inbox, Login)
+│   ├── services/      # SSR Services (Supabase, Operação, Sessão)
+│   ├── root.tsx       # Layout Global e UI Context
+│   └── entry.server.tsx
 ├── prisma/
-│   ├── schema.prisma  # Modelagem de dados (Operacao, Pasta, Importacao)
-│   └── migrations/    # Histórico de evolução do banco de dados
-├── public/            # Ativos estáticos
-└── .env               # Configurações de Banco de Dados
+│   ├── schema.prisma  # Modelagem (Operacao, Pasta, Auditoria, Importacao)
+│   └── migrations/    # Evolução do Banco
+├── .env.example       # Template de ambiente
+└── bun.lock           # Lockfile de dependências
 ```
 
 ---
@@ -58,36 +57,39 @@ O **Logicell** é uma plataforma full-stack para gerenciamento de operações lo
 ## 🏁 Primeiros Passos
 
 ### Pré-requisitos
-- **Node.js** v20 ou superior.
-- Instância do **PostgreSQL** rodando.
+- **Bun** instalado.
+- Projeto no **Supabase** configurado.
 
 ### Instalação e Execução
 
 1. **Instalar dependências**
    ```bash
-   npm install
+   bun install
    ```
 
 2. **Configurar Variáveis de Ambiente**
-   Crie um arquivo `.env` na raiz com sua string de conexão:
+   Crie um `.env` com base no `.env.example`:
    ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/logistica_db"
+   DATABASE_URL="postgresql://postgres:password@db.supabase.co:5432/postgres"
+   DIRECT_URL="postgresql://postgres:password@db.supabase.co:5432/postgres"
+   SUPABASE_URL="https://your-project.supabase.co"
+   SUPABASE_ANON_KEY="your-anon-key"
+   SESSION_SECRET="sua-chave-secreta"
    ```
 
-3. **Preparar o Banco de Dados**
+3. **Migrar o Banco de Dados**
    ```bash
-   npm run generate
-   npm run migrate
+   bun x prisma migrate dev
    ```
 
 4. **Iniciar em Desenvolvimento**
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 ---
 
 ## 📋 Mapeamento de Dados (29 Colunas Técnicas)
 
-O sistema processa e exibe:
 Agência, Emissão, Código, Cliente, CNPJ Raiz, CNPJ Pagador, CTe, Status, Observação, Tipo Doc, Remetente, Origem, UF Origem, Destinatário, Destino, UF Destino, Produto, Peso, Tarifa, Total R$, NF, Placa, Matriz, Contrato, Chave de Acesso, Usuário, Tipo CTe, Proprietário e Motorista.
+

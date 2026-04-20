@@ -5,7 +5,7 @@ export class PastaService {
   private static cacheTime = 0;
   private static readonly TTL = 1000 * 60; // 1 minuto
 
-  private static invalidarCache() {
+  static invalidarCache() {
     this.cache = null;
     this.cacheTime = 0;
   }
@@ -25,6 +25,12 @@ export class PastaService {
     this.cache = data;
     this.cacheTime = Date.now();
     return data;
+  }
+
+  static async buscarPorId(id: number) {
+    return prisma.pasta.findUnique({
+      where: { id }
+    });
   }
 
   static async criar(nome: string) {

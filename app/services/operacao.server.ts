@@ -1,41 +1,15 @@
 import { prisma } from "./db.server";
-import * as XLSX from "xlsx";
 import crypto from "crypto";
-import { z } from "zod";
 import { PastaService } from "./pasta.server";
+import { ExcelParser } from "~/utils/excel-parser.server";
+import { DateParser } from "~/utils/date-parser";
 
-const OperacaoSchema = z.object({
-  nm_agencia: z.string().min(1),
-  dt_emissao_: z.date().nullable(),
-  cd_pessoa_pagador: z.string().nullable().optional(),
-  nm_pessoa_pagador: z.string().nullable().optional(),
-  nr_cpf_cnpj_raiz: z.string().nullable().optional(),
-  nr_cpf_cnpj_pagador: z.string().nullable().optional(),
-  nr_ctrc: z.string().min(1),
-  id_tipo_documento: z.string().nullable().optional(),
-  nm_pessoa_remetente: z.string().nullable().optional(),
-  nm_cidade_origem: z.string().nullable().optional(),
-  ds_sigla_origem: z.string().nullable().optional(),
-  nm_pessoa_destinatario: z.string().nullable().optional(),
-  nm_cidade_destino: z.string().nullable().optional(),
-  ds_sigla_destino: z.string().nullable().optional(),
-  nm_produto: z.string().nullable().optional(),
-  vl_peso: z.number().nullable().optional().default(0),
-  vl_tarifa: z.number().nullable().optional().default(0),
-  vl_total: z.number().nullable().optional().default(0),
-  nr_nf: z.string().nullable().optional(),
-  ds_placa: z.string().nullable().optional(),
-  nm_pessoa_matriz: z.string().nullable().optional(),
-  nr_contrato: z.string().nullable().optional(),
-  nr_chave_acesso: z.string().nullable().optional(),
-  nm_pessoa_usuario_lancamento: z.string().nullable().optional(),
-  id_tipo_ctrc: z.string().nullable().optional(),
-  nm_proprietario_posse_cavalo: z.string().nullable().optional(),
-  nm_motorista: z.string().nullable().optional(),
-  status: z.string().nullable().optional(),
-  comentarios: z.string().nullable().optional(),
-});
-
+/**
+ * OperacaoService
+ * Responsabilidade: Interações puras de Banco de Dados com a tabela Operacao.
+ * Transformações de dados, validações complexas e regras de negócio de parsing
+ * foram extraídas para `excel-parser.server.ts`, `schemas/operacao` e `dashboard.server.ts`.
+ */
 export class OperacaoService {
   private static agenciasCache: string[] | null = null;
   private static agenciasCacheTime = 0;
@@ -49,87 +23,39 @@ export class OperacaoService {
     this.agenciasCacheTime = 0;
     this.inboxCountCache = null;
     this.inboxCountCacheTime = 0;
-    // Garante que o painel lateral atualize as contagens
     PastaService.invalidarCache();
-  }
-
-  private static padronizarAgencia(nome: string): string {
-    if (!nome) return "";
-    return nome.toUpperCase().replace(/\s+/g, " ").replace(/\s*-\s*/g, " - ").trim();
   }
 
   static async processarPlanilha(buffer: Buffer, originalName: string, usuario: string = "Sistema") {
     this.invalidarCache();
     const hash = crypto.createHash("md5").update(buffer).digest("hex");
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rawData: any[] = XLSX.utils.sheet_to_json(sheet, { range: 1 });
-
-    if (rawData.length === 0) throw new Error("Planilha vazia");
 
     const importacao = await prisma.importacao.create({
-      data: { nomeArquivo: originalName, usuario, qtdRegistros: rawData.length, hashArquivo: hash }
+      data: { nomeArquivo: originalName, usuario, qtdRegistros: 0, hashArquivo: hash }
     });
 
-    const operacoes = rawData.map((row) => {
-      const get = (keys: string[]) => {
-        for (const key of keys) {
-          const val = row[key];
-          if (val !== undefined && val !== null && String(val).trim() !== "") return val;
-        }
-        return null;
-      };
+    const parsedData = ExcelParser.analisarBuffer(buffer, importacao.id);
 
-      const op = {
-        importacaoId: importacao.id,
-        nm_agencia: this.padronizarAgencia(String(get(["nm_agencia", "AGÊNCIA", "AGENCIA"]) || "DESCONHECIDA")),
-        dt_emissao_: get(["dt_emissao_", "DATA EMISSÃO", "EMISSÃO", "EMISSAO"]) ? new Date(get(["dt_emissao_", "DATA EMISSÃO", "EMISSÃO", "EMISSAO"]) as any) : null,
-        cd_pessoa_pagador: String(get(["cd_pessoa_pagador", "CÓD. PAGADOR", "COD PAGADOR", "CÓDIGO"]) || ""),
-        nm_pessoa_pagador: String(get(["nm_pessoa_pagador", "PAGADOR", "CLIENTE"]) || ""),
-        nr_cpf_cnpj_raiz: String(get(["nr_cpf_cnpj_raiz", "CNPJ RAIZ", "RAIZ"]) || ""),
-        nr_cpf_cnpj_pagador: String(get(["nr_cpf_cnpj_pagador", "CPF/CNPJ PAGADOR", "CNPJ"]) || ""),
-        nr_ctrc: String(get(["nr_ctrc", "CTRC", "CTE", "CT-E"]) || "0").trim(),
-        id_tipo_documento: String(get(["id_tipo_documento", "TIPO DOC", "TIPO"]) || ""),
-        nm_pessoa_remetente: String(get(["nm_pessoa_remetente", "REMETENTE"]) || ""),
-        nm_cidade_origem: String(get(["nm_cidade_origem", "CIDADE ORIGEM", "ORIGEM"]) || ""),
-        ds_sigla_origem: String(get(["ds_sigla_origem", "UF ORIGEM", "UF_ORI"]) || ""),
-        nm_pessoa_destinatario: String(get(["nm_pessoa_destinatario", "DESTINATÁRIO", "DESTINATARIO"]) || ""),
-        nm_cidade_destino: String(get(["nm_cidade_destino", "CIDADE DESTINO", "DESTINO"]) || ""),
-        ds_sigla_destino: String(get(["ds_sigla_destino", "UF DESTINO", "UF_DES"]) || ""),
-        nm_produto: String(get(["nm_produto", "PRODUTO"]) || ""),
-        vl_peso: Number(get(["vl_peso", "PESO", "PESO REAL"]) || 0),
-        vl_tarifa: Number(get(["vl_tarifa", "TARIFA"]) || 0),
-        vl_total: get(["vl_total", "VALOR TOTAL", "TOTAL", "VALOR"]) ? Number(get(["vl_total", "VALOR TOTAL", "TOTAL", "VALOR"])) : null,
-        nr_nf: get(["nr_nf", "NF", "NOTA FISCAL"]) ? String(get(["nr_nf", "NF", "NOTA FISCAL"])).trim() : null,
-        ds_placa: String(get(["ds_placa", "PLACA"]) || ""),
-        nm_pessoa_matriz: String(get(["nm_pessoa_matriz", "MATRIZ"]) || ""),
-        nr_contrato: String(get(["nr_contrato", "CONTRATO"]) || ""),
-        nr_chave_acesso: String(get(["nr_chave_acesso", "CHAVE ACESSO", "CHAVE DE ACESSO"]) || ""),
-        nm_pessoa_usuario_lancamento: String(get(["nm_pessoa_usuario_lancamento", "USUÁRIO", "USUARIO"]) || ""),
-        id_tipo_ctrc: String(get(["id_tipo_ctrc", "TIPO CTE", "TIPO CTe"]) || ""),
-        nm_proprietario_posse_cavalo: String(get(["nm_proprietario_posse_cavalo", "PROPRIETÁRIO", "PROPRIETARIO"]) || ""),
-        nm_motorista: String(get(["nm_motorista", "MOTORISTA"]) || ""),
-        status: get(["status", "ANEXADO ATUA TICKET/NF"]) ? String(get(["status", "ANEXADO ATUA TICKET/NF"])).trim().toUpperCase() : null,
-        comentarios: get(["comentarios", "OBSERVAÇÃO", "OBSERVACAO"]) ? String(get(["comentarios", "OBSERVAÇÃO", "OBSERVACAO"])).trim() : null,
-      };
-
-      try {
-        return OperacaoSchema.parse(op);
-      } catch (e) {
-        console.error("Erro ao validar linha da planilha:", e);
-        return op; // Fallback se falhar, mas logamos o erro
-      }
-    });
-
+    // SISTEMA SÍNCRONO: O usuário prefere esperar o carregamento real do que ter um "falso rápido".
+    // Aguardamos todo o tráfego do banco terminar para a tela recarregar já com os dados presentes.
     const resultado = await prisma.operacao.createMany({ 
-      data: operacoes as any,
+      data: parsedData.operacoes as any,
       skipDuplicates: true 
     });
 
+    await prisma.importacao.update({
+      where: { id: importacao.id },
+      data: { qtdRegistros: parsedData.totalLido }
+    });
+        
+    PastaService.invalidarCache();
+    OperacaoService.invalidarCache(); 
+
+    // Retorno VERDADEIRO consultando as colunas ignoradas e adicionadas diretamente do Prisma.
     return { 
-      totalLido: rawData.length, 
+      totalLido: parsedData.totalLido, 
       adicionados: resultado.count, 
-      ignorados: rawData.length - resultado.count,
+      ignorados: parsedData.totalLido - resultado.count,
       importId: importacao.id 
     };
   }
@@ -170,7 +96,6 @@ export class OperacaoService {
 
     const total = Number(totalRes[0].count);
     
-    // RETORNANDO O LIMIT PARA O CÁLCULO DO Nº NA TABELA
     return { 
       data: sanitizedData, 
       meta: { total, page: p, limit: l, totalPages: Math.ceil(total / l) } 
@@ -243,68 +168,6 @@ export class OperacaoService {
     return { sql: whereAnd.length > 0 ? `WHERE ${whereAnd.join(" AND ")}` : "", params };
   }
 
-  static async getDashboard() {
-    const [totais, porAgencia, porProduto, ultimasImportacoes, statusSummary, topOrigens, topDestinos] = await Promise.all([
-      prisma.operacao.aggregate({ _sum: { vl_total: true, vl_peso: true }, _count: { id: true } }),
-      prisma.operacao.groupBy({ by: ["nm_agencia"], _sum: { vl_total: true }, orderBy: { _sum: { vl_total: "desc" } }, take: 15 }),
-      prisma.operacao.groupBy({ by: ["nm_produto"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 15 }),
-      prisma.importacao.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
-      // Todos os status presentes no banco
-      prisma.operacao.groupBy({ by: ["status"], _count: { id: true } }),
-      // Top Rotas
-      prisma.operacao.groupBy({ by: ["nm_cidade_origem"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
-      prisma.operacao.groupBy({ by: ["nm_cidade_destino"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 })
-    ]);
-
-    // OTIMIZAÇÃO: Busca TODAS as contagens de status e pastas em uma ÚNICA query de agregação
-    const allCounts = await prisma.operacao.groupBy({
-      by: ['status', 'pastaId'],
-      _count: { id: true },
-      where: { NOT: { status: null } }
-    });
-
-    const todasPastas = await prisma.pasta.findMany({ select: { id: true, nome: true } });
-    const detailedBreakdowns: Record<string, { id: number | null, label: string, count: number }[]> = {};
-
-    allCounts.forEach(item => {
-      const status = item.status!;
-      if (!detailedBreakdowns[status]) detailedBreakdowns[status] = [];
-      
-      if (item.pastaId === null) {
-        detailedBreakdowns[status].push({ id: null, label: "Caixa de Entrada", count: item._count.id });
-      } else {
-        const pasta = todasPastas.find(p => p.id === item.pastaId);
-        if (pasta) {
-          detailedBreakdowns[status].push({ id: pasta.id, label: pasta.nome, count: item._count.id });
-        }
-      }
-    });
-
-    return { 
-      totais: {
-        _sum: {
-          vl_total: Number(totais._sum.vl_total || 0),
-          vl_peso: Number(totais._sum.vl_peso || 0)
-        },
-        _count: { id: totais._count.id },
-        statusMap: statusSummary.reduce((acc: any, curr) => {
-          if (curr.status) acc[curr.status] = curr._count.id;
-          return acc;
-        }, {})
-      },
-      detailedBreakdowns,
-      porAgencia: porAgencia.map(a => ({
-        nm_agencia: a.nm_agencia,
-        _sum: { vl_total: Number(a._sum.vl_total || 0) }
-      })),
-      porProduto,
-      topOrigens,
-      topDestinos,
-      ultimasImportacoes 
-    };
-  }
-
-
   static async contarInbox() { 
     if (this.inboxCountCache !== null && Date.now() - this.inboxCountCacheTime < this.SHORT_TTL) {
       return this.inboxCountCache;
@@ -325,42 +188,187 @@ export class OperacaoService {
     return this.agenciasCache;
   }
 
-  static async bulkActionPasta(ids: number[], pastaId: number | null, filtros?: any) {
+  static async bulkActionPasta(ids: number[], pastaId: number | null, filtros?: any, usuario: string = "Sistema") {
     const finalPastaId = (pastaId === null || isNaN(pastaId)) ? null : pastaId;
+    let affectedIds = ids;
 
-    if (ids.length > 0) {
-      // Caso 1: IDs específicos selecionados
+    if (ids.length === 0 && filtros) {
+      affectedIds = await this.listarIds(filtros);
+    }
+
+    if (affectedIds.length > 0) {
+      // 1. Buscar detalhes completos para a auditoria (Chave de Negócio)
+      const items = await prisma.operacao.findMany({
+        where: { id: { in: affectedIds } },
+        select: { 
+          id: true, nr_ctrc: true, nm_agencia: true, nr_nf: true, 
+          vl_total: true, dt_emissao_: true, pastaId: true 
+        }
+      });
+
+      // 2. Identificar pastas (De -> Para)
+      const finalPastaNome = finalPastaId ? (await PastaService.buscarPorId(finalPastaId))?.nome || String(finalPastaId) : "Caixa de Entrada";
+      const sourcePastaId = items[0]?.pastaId;
+      const sourcePastaNome = sourcePastaId ? (await PastaService.buscarPorId(sourcePastaId))?.nome || String(sourcePastaId) : "Caixa de Entrada";
+
+      // 3. Executar a ação
       await prisma.operacao.updateMany({
-        where: { id: { in: ids } },
+        where: { id: { in: affectedIds } },
         data: { pastaId: finalPastaId }
       });
-    } else if (filtros) {
-      // Caso 2: Mover TUDO baseado no filtro (SQL Direto para Alta Performance)
-      const whereClause = this.construirWhere(filtros.search, filtros.pastaId, filtros);
-      const val = finalPastaId === null ? 'NULL' : finalPastaId;
-      const sqlInput = `UPDATE "Operacao" SET "pastaId" = ${val} ${whereClause.sql}`;
-      await prisma.$executeRawUnsafe(sqlInput, ...whereClause.params);
+
+      // 4. Gravar Auditoria
+      const moveDetails = {
+        origem: sourcePastaNome,
+        destino: finalPastaNome,
+        itens: items.map(i => ({ 
+          id: i.id, 
+          ctrc: i.nr_ctrc, 
+          agencia: i.nm_agencia, 
+          nf: i.nr_nf, 
+          total: i.vl_total, 
+          emissao: i.dt_emissao_ 
+        }))
+      };
+
+      if (affectedIds.length === 1) {
+        const item = items[0];
+        prisma.auditoria.create({
+          data: {
+            operacaoId: item.id,
+            tipo: "MOVE",
+            entidade: "OPERACAO",
+            campo: "pastaId",
+            valorAntigo: sourcePastaNome,
+            valorNovo: finalPastaNome,
+            detalhes: JSON.stringify(moveDetails),
+            usuario
+          } as any
+        }).catch(e => console.error("Erro auditoria move:", e));
+      } else {
+        prisma.auditoria.create({
+          data: {
+            tipo: "BULK_MOVE",
+            entidade: "OPERACAO",
+            valorNovo: finalPastaNome,
+            detalhes: JSON.stringify(moveDetails),
+            usuario
+          } as any
+        }).catch(e => console.error("Erro auditoria bulk move:", e));
+      }
     }
+
     this.invalidarCache();
     await PastaService.invalidarCache();
     return { success: true };
   }
 
-  static async bulkDelete(ids: number[], filters?: any) {
-    if (ids.length > 0) {
-      await prisma.operacao.deleteMany({ where: { id: { in: ids } } });
-    } else if (filters) {
-      const whereClause = this.construirWhere(filters.search, filters.pastaId, filters);
-      const sql = `DELETE FROM "Operacao" ${whereClause.sql}`;
-      await prisma.$executeRawUnsafe(sql, ...whereClause.params);
+  static async bulkDelete(ids: number[], filters?: any, usuario: string = "Sistema") {
+    let affectedIds = ids;
+    if (ids.length === 0 && filters) {
+      affectedIds = await this.listarIds(filters);
     }
+
+    if (affectedIds.length > 0) {
+      // 1. Pega os dados completos antes de apagar (Chave de Negócio)
+      const items = await prisma.operacao.findMany({
+        where: { id: { in: affectedIds } },
+        select: { 
+          id: true, nr_ctrc: true, nm_agencia: true, nr_nf: true, 
+          vl_total: true, dt_emissao_: true 
+        }
+      });
+
+      // 2. Apaga
+      await prisma.operacao.deleteMany({ where: { id: { in: affectedIds } } });
+
+      // 3. Audita com o Snapshot total do item
+      const deleteDetails = items.map(i => ({ 
+        id: i.id, 
+        ctrc: i.nr_ctrc, 
+        agencia: i.nm_agencia, 
+        nf: i.nr_nf, 
+        total: i.vl_total, 
+        emissao: i.dt_emissao_ 
+      }));
+
+      if (items.length === 1) {
+        prisma.auditoria.create({
+          data: {
+            tipo: "DELETE",
+            entidade: "OPERACAO",
+            detalhes: JSON.stringify(deleteDetails),
+            usuario
+          } as any
+        }).catch(e => console.error("Erro auditoria delete:", e));
+      } else {
+        prisma.auditoria.create({
+          data: {
+            tipo: "BULK_DELETE",
+            entidade: "OPERACAO",
+            detalhes: JSON.stringify(deleteDetails),
+            usuario
+          } as any
+        }).catch(e => console.error("Erro auditoria bulk delete:", e));
+      }
+    }
+
     this.invalidarCache();
     await PastaService.invalidarCache();
     return { success: true };
   }
 
-  static async update(id: number, data: any) {
+  static async update(id: number, campo: string, valorNovo: string, usuario: string) {
     this.invalidarCache();
-    return prisma.operacao.update({ where: { id }, data });
+
+    const res = await prisma.$transaction(async (tx) => {
+      // 1. Pega o estado anterior
+      const atual = await tx.operacao.findUnique({ where: { id } }) as any;
+      if (!atual) throw new Error("Operação não encontrada");
+      
+      const valorAntigo = atual[campo] !== null && atual[campo] !== undefined ? String(atual[campo]) : "";
+      
+      // 2. Prepara o valor pro DB com base no campo
+      let valorLimpo: any = valorNovo;
+      if (campo === "dt_emissao_") {
+        const d = DateParser.parseDataBrasileiraSegura(valorNovo);
+        if (d) valorLimpo = d;
+      } else if (campo.startsWith("vl_")) {
+        valorLimpo = Number(valorNovo.replace(",", "."));
+      }
+      
+      // 3. Efetiva o update
+      const operacaoAtualizada = await tx.operacao.update({ 
+        where: { id }, 
+        data: { [campo]: valorLimpo } 
+      });
+
+      return { operacaoAtualizada, valorAntigo, valorLimpo: String(valorLimpo) };
+    });
+
+    // 4. Grava o rastro na Auditoria fora da transação para performance e estabilidade
+    if (res.valorAntigo !== res.valorLimpo) {
+      const { operacaoAtualizada: o } = res;
+      prisma.auditoria.create({
+        data: {
+          operacaoId: id,
+          tipo: "UPDATE",
+          entidade: "OPERACAO",
+          campo,
+          valorAntigo: res.valorAntigo,
+          valorNovo: res.valorLimpo,
+          detalhes: JSON.stringify({
+            agencia: o.nm_agencia,
+            ctrc: o.nr_ctrc,
+            nf: o.nr_nf,
+            total: o.vl_total,
+            emissao: o.dt_emissao_
+          }),
+          usuario
+        } as any
+      }).catch(e => console.error("Falha ao gravar auditoria:", e));
+    }
+
+    return res.operacaoAtualizada;
   }
 }

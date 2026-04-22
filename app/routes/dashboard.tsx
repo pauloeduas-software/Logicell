@@ -1,22 +1,27 @@
-import { useLoaderData, data, useNavigate } from "react-router";
-import { OperacaoService } from "~/services/operacao.server";
+import { useLoaderData, data, useNavigate, Link } from "react-router";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell
 } from "recharts";
 import { 
   Clock, AlertCircle, Layers, FileSpreadsheet, ChevronRight, X, 
-  TrendingUp, Scale, MapPin, Activity, Star, Globe, CheckCircle2, ChevronDown
+  TrendingUp, Scale, MapPin, Activity, Globe, History, ChevronDown
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { requireUser } from "~/services/auth.server";
+import { AuditoriaModal } from "~/components/AuditoriaModal";
+import { ImportacaoModal } from "~/components/ImportacaoModal";
+import { GeografiaModal } from "~/components/GeografiaModal";
 import type { LoaderFunctionArgs } from "react-router";
+import { formatarMoeda, formatarNumero } from "~/utils/formatters";
+
+import { DashboardService } from "~/services/dashboard.server";
 
 const CORES = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e'];
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { response } = await requireUser(request);
-  const stats = await OperacaoService.getDashboard();
+  const stats = await DashboardService.getDashboardMetrics();
   return data(stats, { headers: response.headers });
 }
 
@@ -30,7 +35,9 @@ export default function Dashboard() {
   const [isDark, setIsDark] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [modalStatus, setModalStatus] = useState<string | null>(null);
-  const [showAllRoutes, setShowAllRoutes] = useState(false);
+  const [showGeografiaModal, setShowGeografiaModal] = useState(false);
+  const [showImportacaoModal, setShowImportacaoModal] = useState(false);
+  const [showGlobalHistory, setShowGlobalHistory] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -66,7 +73,6 @@ export default function Dashboard() {
     const s = (status || "").trim().toUpperCase();
     if (statusColors[s]) return statusColors[s];
     
-    // Fallback para garantir que TODOS tenham cor, mesmo status novos
     const fallbackColors = [
       'text-fuchsia-600 border-fuchsia-500/30 bg-fuchsia-500/10',
       'text-teal-600 border-teal-500/30 bg-teal-500/10',
@@ -82,7 +88,7 @@ export default function Dashboard() {
   return (
     <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6 animate-in fade-in duration-500 pb-12">
       
-      {/* Modal Genérico de Diagnóstico */}
+      {/* Modal Genérico de Diagnóstico Status */}
       {modalStatus && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-300 overflow-hidden">
@@ -130,7 +136,7 @@ export default function Dashboard() {
             <div className="w-1.5 h-5 bg-blue-600 rounded-full" />
             <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Fluxo Operacional</h2>
           </div>
-          <p className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-3 py-1 rounded-lg">Clique para diagnosticar</p>
+          <p className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800/50 px-3 py-1 rounded-lg">Clique para ver as operações</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {todosStatus.map((status, i) => {
@@ -143,7 +149,7 @@ export default function Dashboard() {
                 onClick={() => setModalStatus(status)}
                 className={cn(
                   "p-4 rounded-3xl border transition-all text-left flex flex-col justify-between group h-28 relative overflow-hidden",
-                  style, // Aplica cores personalizadas (bg, border, text) para TODOS os cards
+                  style,
                   "hover:shadow-md hover:scale-[1.02] active:scale-95"
                 )}
               >
@@ -153,7 +159,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center justify-end">
                   <div className="p-1 px-2 bg-white/50 dark:bg-slate-800/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ChevronDown size={12} className="text-inherit" />
+                    <History size={12} className="text-inherit" />
                   </div>
                 </div>
               </button>
@@ -162,7 +168,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* BLOCO 2: RESUMO EXECUTIVO (FINANCEIRO PADRONIZADO) */}
+      {/* BLOCO 2: RESUMO EXECUTIVO */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-around relative group">
           <div className="flex flex-col items-center text-center">
@@ -170,7 +176,7 @@ export default function Dashboard() {
               <TrendingUp size={12} className="text-emerald-500" /> Faturamento Total
             </span>
             <p className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter tabular-nums leading-none">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(estatisticas.totais._sum.vl_total)}
+              {formatarMoeda(estatisticas.totais._sum.vl_total)}
             </p>
           </div>
           
@@ -181,26 +187,36 @@ export default function Dashboard() {
               <Scale size={12} className="text-blue-500" /> Volume Processado
             </span>
             <p className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter tabular-nums leading-none">
-              {new Intl.NumberFormat('pt-BR').format(estatisticas.totais._sum.vl_peso)} <small className="text-sm font-bold opacity-30 uppercase">kg</small>
+              {formatarNumero(estatisticas.totais._sum.vl_peso)} <small className="text-sm font-bold opacity-30 uppercase">kg</small>
             </p>
           </div>
         </div>
 
-        <button 
-          onClick={() => navigate('/caixa-de-entrada')}
-          className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between px-6 hover:border-blue-500 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 group"
-        >
-           <div className="text-left">
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Total Geral</p>
-              <p className="text-2xl font-black text-slate-800 dark:text-white leading-none">{estatisticas.totais._count.id} <small className="text-xs font-bold opacity-40 uppercase">Itens</small></p>
-           </div>
-           <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
-             <Layers size={20} />
-           </div>
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => navigate('/caixa-de-entrada')}
+            className="flex-1 bg-white dark:bg-slate-900 rounded-[2rem] p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between px-6 hover:border-blue-500 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 group"
+          >
+            <div className="text-left">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Todas Operações</p>
+                <p className="text-2xl font-black text-slate-800 dark:text-white leading-none">{estatisticas.totais._count.id} <small className="text-xs font-bold opacity-40 uppercase">Itens</small></p>
+            </div>
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all">
+              <Layers size={20} />
+            </div>
+          </button>
+
+          <button 
+            onClick={() => setShowGlobalHistory(true)}
+            className="bg-white dark:bg-slate-900 rounded-[2rem] p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center aspect-square hover:border-indigo-500 transition-all hover:bg-slate-50 dark:hover:bg-slate-800 group"
+            title="Histórico Geral do Sistema"
+          >
+            <History size={20} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+          </button>
+        </div>
       </section>
 
-      {/* BLOCO 3: ANALYTICS (SIDE-BY-SIDE COMPACT) */}
+      {/* BLOCO 3: ANALYTICS */}
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between mb-6">
@@ -251,7 +267,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* BLOCO 4: LOGÍSTICA (ROTAS) */}
+      {/* BLOCO 4: LOGÍSTICA (GEOGRAFIA) */}
       <section className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
@@ -259,97 +275,115 @@ export default function Dashboard() {
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Geografia do Fluxo Logístico</h3>
           </div>
           <button 
-            onClick={() => setShowAllRoutes(!showAllRoutes)}
+            onClick={() => setShowGeografiaModal(true)}
             className="text-[9px] font-black uppercase tracking-widest px-4 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
           >
-            {showAllRoutes ? "Ver Menos (-5)" : "Ver Ranking Completo (+10)"}
+            Ver Mais Detalhes
           </button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          <div className="space-y-6">
-            <div>
-              <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" /> Cidades de Origem (Onde a Carga é Gerada)
-              </p>
-              <div className="space-y-4">
-                {estatisticas.topOrigens.slice(0, showAllRoutes ? 10 : 5).map((o: any, i: number) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-slate-500/50 w-4">{i+1 < 10 ? `0${i+1}` : i+1}</span>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{o.nm_cidade_origem}</span>
-                        <div className="text-right">
-                          <span className="text-[10px] font-black text-blue-600 block leading-none">{o._count.id}</span>
-                          <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Cargas Geradas</span>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${(o._count.id / estatisticas.topOrigens[0]._count.id) * 100}%` }} />
-                      </div>
+          <div>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" /> Maiores Origens
+            </p>
+            <div className="space-y-4">
+              {estatisticas.topOrigens.slice(0, 5).map((o: any, i: number) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-[10px] font-black text-slate-500/50 w-4">0{i+1}</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{o.nm_cidade_origem}</span>
+                      <span className="text-[10px] font-black text-blue-600">{o._count.id}</span>
+                    </div>
+                    <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${(o._count.id / estatisticas.topOrigens[0]._count.id) * 100}%` }} />
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
           
-          <div className="space-y-6">
-            <div>
-              <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Cidades de Destino (Onde a Carga é Entregue)
-              </p>
-              <div className="space-y-4">
-                {estatisticas.topDestinos.slice(0, showAllRoutes ? 10 : 5).map((d: any, i: number) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-[10px] font-black text-slate-500/50 w-4">{i+1 < 10 ? `0${i+1}` : i+1}</span>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.nm_cidade_destino}</span>
-                        <div className="text-right">
-                          <span className="text-[10px] font-black text-emerald-600 block leading-none">{d._count.id}</span>
-                          <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Cargas Recebidas</span>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${(d._count.id / estatisticas.topDestinos[0]._count.id) * 100}%` }} />
-                      </div>
+          <div>
+            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> Maiores Destinos
+            </p>
+            <div className="space-y-4">
+              {estatisticas.topDestinos.slice(0, 5).map((d: any, i: number) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-[10px] font-black text-slate-500/50 w-4">0{i+1}</span>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{d.nm_cidade_destino}</span>
+                      <span className="text-[10px] font-black text-emerald-600">{d._count.id}</span>
+                    </div>
+                    <div className="h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500" style={{ width: `${(d._count.id / estatisticas.topDestinos[0]._count.id) * 100}%` }} />
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* BLOCO 5: HISTÓRICO (TIMELINE FINAL) */}
+      {/* BLOCO 5: FILA DE IMPORTAÇÃO (TIMELINE COMPACTA) */}
       <section className="bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-800">
-        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-6">Fila de Importação Recente</h3>
-        <div className="relative space-y-3 before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-[1px] before:bg-slate-200 dark:before:bg-slate-800">
-          {estatisticas.ultimasImportacoes?.map((imp: any) => (
-            <div key={imp.id} className="relative pl-10 group">
-              <div className="absolute left-[15px] top-3 w-2.5 h-2.5 rounded-full bg-blue-600 z-10 shadow-lg" />
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between group-hover:border-blue-500/30 transition-all">
-                <div className="flex items-center gap-4">
-                  <FileSpreadsheet size={18} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-                  <div>
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-100 leading-none mb-1">{imp.nomeArquivo}</p>
-                    <div className="flex items-center gap-2">
-                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{new Date(imp.createdAt).toLocaleString('pt-BR')}</p>
-                       <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                       <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Por: {imp.usuario}</p>
-                    </div>
-                  </div>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">Fila de Importação Recente</h3>
+          <button 
+            onClick={() => setShowImportacaoModal(true)}
+            className="text-[9px] font-black uppercase tracking-widest px-4 py-2 bg-white dark:bg-slate-800 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-slate-200 dark:border-slate-700"
+          >
+            Ver Histórico Completo
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {estatisticas.ultimasImportacoes?.slice(0, 3).map((imp: any) => (
+            <div key={imp.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-blue-500/30 transition-all group">
+              <div className="flex items-center gap-3 mb-3">
+                <FileSpreadsheet size={16} className="text-blue-500" />
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-100 truncate">{imp.nomeArquivo}</p>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase">{new Date(imp.createdAt).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-[8px] font-black text-blue-500 uppercase">POR: {imp.usuario}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">{imp.qtdRegistros} Regs</p>
-                </div>
+                <span className="text-[9px] font-black bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-lg">
+                  {imp.qtdRegistros} Regs
+                </span>
               </div>
             </div>
           ))}
         </div>
       </section>
+
+      {/* MODAIS */}
+      {showGlobalHistory && (
+        <AuditoriaModal 
+          title="Histórico Geral" 
+          onClose={() => setShowGlobalHistory(false)} 
+        />
+      )}
+
+      {showImportacaoModal && (
+        <ImportacaoModal 
+          importacoes={estatisticas.ultimasImportacoes} 
+          onClose={() => setShowImportacaoModal(false)}
+        />
+      )}
+
+      {showGeografiaModal && (
+        <GeografiaModal 
+          topOrigens={estatisticas.topOrigens} 
+          topDestinos={estatisticas.topDestinos} 
+          onClose={() => setShowGeografiaModal(false)}
+        />
+      )}
     </div>
   );
 }

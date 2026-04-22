@@ -4,6 +4,7 @@ export default [
   index("routes/dashboard.tsx"),
   route("caixa-de-entrada", "routes/inbox.tsx"),
   route("pastas/:id", "routes/pastas.$id.tsx"),
-  route("api/pastas", "routes/api.pastas.ts"),
+  route("api/operacoes", "routes/api.operacoes.ts"),
+  route("api/auditoria", "routes/api.auditoria.tsx"),
   route("login", "routes/login.tsx"),
 ] satisfies RouteConfig;

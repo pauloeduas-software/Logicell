@@ -12,12 +12,14 @@ import {
   Form,
 } from "react-router";
 import type { LinksFunction, ShouldRevalidateFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useState, useEffect, createContext, useContext, useMemo } from "react";
+import { useState, useEffect, createContext, useContext, useMemo, useCallback } from "react";
 import { 
   Truck, Inbox, Plus, Edit2, Trash2, ChevronLeft, ChevronRight, LayoutDashboard, Folder, X, Sun, Moon, CheckCircle2, AlertCircle, Info, AlertTriangle, LogOut, User as UserIcon
 } from "lucide-react";
 import { getUser } from "./services/auth.server";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { MESSAGES } from "./constants/messages";
+import { useActionFeedback } from "./hooks/use-action-feedback";
 import "./tailwind.css";
 
 function cn(...classes: (string | boolean | undefined)[]) {
@@ -107,19 +109,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [isLoading]);
 
-  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
-    const id = Date.now();
+  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, msg, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
-  };
+  }, []);
 
-  const confirmAction = ({ title, message, onConfirm, variant = 'primary' }: any) => {
+  const confirmAction = useCallback(({ title, message, onConfirm, variant = 'primary' }: any) => {
     setModal({ isOpen: true, title, message, onConfirm, variant, isAlert: false });
-  };
+  }, []);
 
-  const showAlert = ({ title, message, variant = 'success' }: any) => {
+  const showAlert = useCallback(({ title, message, variant = 'success' }: any) => {
     setModal({ isOpen: true, title, message, variant, isAlert: true });
-  };
+  }, []);
+
+  const uiContextValue = useMemo(() => ({ showToast, confirm: confirmAction, alert: showAlert }), [showToast, confirmAction, showAlert]);
 
   return (
     <html lang="pt-BR" className="h-full dark">
@@ -130,7 +134,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body className="h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased overflow-hidden w-screen font-sans">
-        <UIContext.Provider value={{ showToast, confirm: confirmAction, alert: showAlert }}>
+        <UIContext.Provider value={uiContextValue}>
           <AuthProvider initialSession={data?.user ?? null}>
             {/* Progress Bar Superior */}
             <div 
@@ -165,7 +169,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     modal.variant === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
                   }`}>
                     {modal.variant === 'danger' || modal.variant === 'error' ? <AlertTriangle size={32} /> : 
-                     modal.variant === 'success' ? <CheckCircle2 size={32} /> : <Info size={32} />}
+                    modal.variant === 'success' ? <CheckCircle2 size={32} /> : <Info size={32} />}
                   </div>
                   <h2 className="text-xl font-black mb-2 text-slate-800 dark:text-white uppercase tracking-tight">{modal.title}</h2>
                   <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed mb-8 whitespace-pre-line">{modal.message}</p>
@@ -219,20 +223,21 @@ export default function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDark]);
 
+  // Sincronização modular de notificações das pastas
+  useActionFeedback(fetcher, { showToast });
+
   const handleCreateFolder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-    fetcher.submit({ intent: "createFolder", nome: newFolderName }, { method: "post", action: "/api/pastas" });
+    fetcher.submit({ intent: "createFolder", nome: newFolderName }, { method: "post", action: "/api/operacoes" });
     setNewFolderName("");
     setIsAddingFolder(false);
-    showToast("Pasta criada!");
   };
 
   const submitRename = (id: number) => {
     if (!editingValue.trim()) return;
-    fetcher.submit({ intent: "renameFolder", id: String(id), nome: editingValue }, { method: "post", action: "/api/pastas" });
+    fetcher.submit({ intent: "renameFolder", id: String(id), nome: editingValue }, { method: "post", action: "/api/operacoes" });
     setEditingFolderId(null);
-    showToast("Pasta renomeada!");
   };
 
   if (isLoginPage) {
@@ -315,12 +320,9 @@ export default function App() {
                                 <button onClick={(e) => { 
                                   e.preventDefault(); 
                                   confirmAction({
-                                    title: "Excluir Pasta?",
-                                    message: `Tem certeza que deseja excluir "${p.nome}"?`,
-                                    variant: 'danger',
+                                    ...MESSAGES.alerts.deleteFolderConfirm(p.nome),
                                     onConfirm: () => {
-                                      fetcher.submit({ intent: "deleteFolder", id: String(p.id) }, { method: "post", action: "/api/pastas" });
-                                      showToast("Pasta excluída.", "info");
+                                      fetcher.submit({ intent: "deleteFolder", id: String(p.id) }, { method: "post", action: "/api/operacoes" });
                                     }
                                   });
                                 }} className="hover:text-rose-400"><Trash2 size={12} /></button>

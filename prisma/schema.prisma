@@ -77,13 +77,20 @@ model Importacao {
 
 model Auditoria {
   id          Int      @id @default(autoincrement())
-  operacaoId  Int
-  campo       String
+  tipo        String   @default("UPDATE")
+  entidade    String   @default("OPERACAO")
+  operacaoId  Int?
+  campo       String?
   valorAntigo String?
   valorNovo   String?
+  detalhes    String?
   usuario     String
   createdAt   DateTime @default(now())
-  operacao    Operacao @relation(fields: [operacaoId], references: [id])
+  operacao    Operacao? @relation(fields: [operacaoId], references: [id], onDelete: SetNull)
+
+  @@index([usuario])
+  @@index([tipo])
+  @@index([operacaoId])
 }
 
 model Pasta {

@@ -6,6 +6,11 @@ import { requireUser } from "~/services/auth.server";
 import { OperacaoService } from "~/services/operacao.server";
 import { OperacoesView } from "~/components/OperacoesView";
 
+export const shouldRevalidate = ({ formData, defaultShouldRevalidate }: any) => {
+  if (formData?.get("intent") === "update") return false;
+  return defaultShouldRevalidate;
+};
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const { user, response } = await requireUser(request);
   const url = new URL(request.url);

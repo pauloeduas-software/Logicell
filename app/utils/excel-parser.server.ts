@@ -25,6 +25,22 @@ export class ExcelParser {
 
     if (rawData.length === 0) throw new Error("Planilha vazia");
 
+    // Validação de Cabeçalhos (Obrigatórios: Agência, CTRC, Data Emissão)
+    const availableHeaders = Object.keys(rawData[0]).map(h => h.toUpperCase());
+    const requiredChecks = [
+      { name: "Agência", aliases: ["NM_AGENCIA", "AGÊNCIA", "AGENCIA"] },
+      { name: "CTRC", aliases: ["NR_CTRC", "CTRC", "CTE", "CT-E"] },
+      { name: "Data Emissão", aliases: ["DT_EMISSAO_", "DATA EMISSÃO", "EMISSÃO", "EMISSAO"] }
+    ];
+
+    const missing = requiredChecks.filter(check => 
+      !check.aliases.some(alias => availableHeaders.includes(alias))
+    );
+
+    if (missing.length > 0) {
+      throw new Error(`Arquivo inválido ou com cabeçalhos incorretos. Colunas obrigatórias faltando: ${missing.map(m => m.name).join(", ")}.`);
+    }
+
     const operacoes = rawData.map((row) => {
       const get = (keys: string[]) => {
         for (const key of keys) {
@@ -35,8 +51,12 @@ export class ExcelParser {
       };
 
       const dtCrua = get(["dt_emissao_", "DATA EMISSÃO", "EMISSÃO", "EMISSAO"]);
-      // Respeitando o comportamento original exato de parse de data para evitar quebras de Unique Constraint
+      // Respeitando o comportamento original exato de parse de data
       const dt_emissao_ = dtCrua ? (dtCrua instanceof Date ? dtCrua : new Date(dtCrua as any)) : null;
+      
+      if (!dt_emissao_ || isNaN(dt_emissao_.getTime())) {
+        throw new Error(`Data de Emissão inválida ou ausente na linha ${rawData.indexOf(row) + 2}. Certifique-se de que a coluna "Data Emissão" está preenchida corretamente.`);
+      }
       
       const op = {
         importacaoId,

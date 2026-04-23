@@ -14,6 +14,7 @@ import { formatarMoeda, formatarData, formatarNumero } from "~/utils/formatters"
 import { AuditoriaModal } from "./AuditoriaModal";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { EditableCell } from "./EditableCell";
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
@@ -50,7 +51,6 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
     maxTotal: searchParams.get("max_total") || ""
   });
 
-  const [editando, setEditing] = useState<{ id: number; campo: string; valorTemp: string } | null>(null);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [showPastaMenu, setShowPastaMenu] = useState(false);
   const [auditoriaModalId, setAuditoriaModalId] = useState<number | null>(null);
@@ -125,7 +125,6 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
     formData.append("campo", campo);
     formData.append("valor", valor);
     fetcher.submit(formData, { method: "post", action: "/api/operacoes" });
-    setEditing(null);
   };
 
   const moverParaPasta = (pId: number | null, pNome: string, totalFiltro: number) => {
@@ -199,7 +198,7 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
 
           {!showImport && (
             <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl shrink-0">
-              <Truck className="text-indigo-500" size={16} />
+              {carregando ? <Loader2 size={16} className="animate-spin text-indigo-500" /> : <Truck className="text-indigo-500" size={16} />}
               <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{nomePasta}</span>
             </div>
           )}
@@ -210,6 +209,7 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
               placeholder="Busca Geral" 
               value={filtros.search}
               onChange={(e) => setFilters(p => ({ ...p, search: e.target.value }))}
+              maxLength={500}
               className="w-full bg-slate-100/50 dark:bg-slate-800/50 border-0 rounded-xl pl-10 pr-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm font-medium"
             />
           </div>
@@ -283,7 +283,7 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
                 <input placeholder="Remetente" value={filtros.sender} onChange={e => setFilters(p => ({...p, sender: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
                 <input placeholder="Destinatário" value={filtros.recipient} onChange={e => setFilters(p => ({...p, recipient: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
                 <input placeholder="Produto" value={filtros.product} onChange={e => setFilters(p => ({...p, product: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
-                <input placeholder="Placa" value={filtros.plate} onChange={e => setFilters(p => ({...p, plate: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
+                <input placeholder="Placa" value={filtros.plate} maxLength={20} onChange={e => setFilters(p => ({...p, plate: e.target.value}))} className="flex-1 min-w-[140px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl px-4 py-2 outline-none text-xs font-bold" />
               </div>
             )}
           </Await>
@@ -352,26 +352,17 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
                           <tr key={row.id} className={cn("hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors", selecionados.has(row.id) && "bg-indigo-50/50 dark:bg-indigo-900/20")}>
                             <td className="px-4 py-1.5 text-[10px] text-slate-400 font-mono text-center border-r border-slate-100 dark:border-slate-800/50">{(meta.page - 1) * meta.limit + idx + 1}</td>
                             <td className="px-2 py-1.5 border-r border-slate-100 dark:border-slate-800/50 text-center"><input type="checkbox" checked={selecionados.has(row.id)} onChange={() => toggleSelecao(row.id)} className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer" /></td>
-                            {COLUNAS_OPERACAO.map(col => {
-                              const estaSalvando = fetcher.state !== "idle" && fetcher.formData?.get("intent") === "update" && fetcher.formData?.get("id") === String(row.id) && fetcher.formData?.get("campo") === col.key;
-                              const displayValue = row[col.key];
-
-                              return (
-                                <td key={col.key} onDoubleClick={() => setEditing({ id: row.id, campo: col.key, valorTemp: row[col.key] || "" })} className={cn("px-4 py-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 relative border-r border-slate-50 dark:border-slate-800/50 last:border-0", (col.isNumeric || col.isCurrency) && "text-right tabular-nums")}>
-                                  {editando?.id === row.id && editando?.campo === col.key ? (
-                                    col.key === "status" ? (
-                                      <select autoFocus value={editando.valorTemp} onChange={e => setEditing({...editando, valorTemp: e.target.value})} onBlur={() => handleLocalUpdate(row.id, col.key, editando.valorTemp)} className="absolute inset-0 w-full h-full bg-white dark:bg-slate-800 border-[1.5px] border-indigo-500 px-2 outline-none z-30 font-bold text-slate-900 dark:text-white text-[11px]"><option value="">Selecione...</option>{STATUS_OPERACAO.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
-                                    ) : (
-                                      <input autoFocus value={editando.valorTemp} onChange={e => setEditing({...editando, valorTemp: e.target.value})} onBlur={() => handleLocalUpdate(row.id, col.key, editando.valorTemp)} onKeyDown={e => e.key === "Enter" && handleLocalUpdate(row.id, col.key, editando.valorTemp)} className="absolute inset-0 w-full h-full bg-white dark:bg-slate-800 border-[1.5px] border-indigo-500 px-4 outline-none z-30 font-bold text-slate-900 dark:text-white text-[11px]" />
-                                    )
-                                  ) : (
-                                    <span className={cn("truncate block", col.key === "status" && "px-1.5 py-0.5 rounded-lg text-[9px] font-black inline-block bg-slate-100 dark:bg-slate-800", estaSalvando && "opacity-50")} title={String(displayValue || "")}>
-                                      {col.key === "dt_emissao_" ? formatarData(displayValue) : (col.isCurrency ? formatarMoeda(displayValue) : (col.isNumeric ? formatarNumero(displayValue) : displayValue || "-"))}
-                                    </span>
-                                  )}
+                              {COLUNAS_OPERACAO.map(col => (
+                                <td key={col.key} className="p-0 border-r border-slate-50 dark:border-slate-800/50 last:border-0 relative">
+                                  <EditableCell
+                                    id={row.id}
+                                    campo={col.key}
+                                    valor={row[col.key]}
+                                    coluna={col}
+                                    onSave={(novoValor) => handleLocalUpdate(row.id, col.key, novoValor)}
+                                  />
                                 </td>
-                              );
-                            })}
+                              ))}
                           </tr>
                         ))}
                       </tbody>

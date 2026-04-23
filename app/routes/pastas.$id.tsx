@@ -7,6 +7,11 @@ import { PastaService } from "~/services/pasta.server";
 import { requireUser } from "~/services/auth.server";
 import { OperacoesView } from "~/components/OperacoesView";
 
+export const shouldRevalidate = ({ formData, defaultShouldRevalidate }: any) => {
+  if (formData?.get("intent") === "update") return false;
+  return defaultShouldRevalidate;
+};
+
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { user, response } = await requireUser(request);
   const pastaId = Number(params.id);

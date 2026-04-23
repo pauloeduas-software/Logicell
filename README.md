@@ -3,23 +3,23 @@
 [![React Router](https://img.shields.io/badge/React_Router-v7-CA4245?logo=react-router)](https://reactrouter.com)
 [![Supabase](https://img.shields.io/badge/Supabase-Auth-3ECF8E?logo=supabase)](https://supabase.com)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io)
-[![Bun](https://img.shields.io/badge/Bun-Runtime-f9f1e1?logo=bun)](https://bun.sh)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
+[![Zod](https://img.shields.io/badge/Zod-Validation-3068b7?logo=zod)](https://zod.dev)
 
-O **Logicell** é uma plataforma corporativa premium para gerenciamento de operações logísticas. O sistema centraliza o processamento de planilhas complexas, organização em pastas, e análise financeira avançada através de um Dashboard de alta densidade (Compact Premier).
+O **Logicell** é uma plataforma corporativa premium para gerenciamento de operações logísticas. O sistema centraliza o processamento de planilhas complexas, organização em pastas, filtros avançados em Kanban e análise financeira avançada através de um Dashboard de alta densidade (Compact Premier).
 
 ---
 
-- ✨ Funcionalidades Principais
+## ✨ Funcionalidades Principais
 
 - **🔐 Autenticação Segura (Supabase):** Sistema de login corporativo com proteção de rotas via Server-Side Auth.
-- **📦 Importação Inteligente (Excel):** Mapeamento automático de colunas de planilhas xls e xlsx para o banco de dados com tratamento de erros.
-- **🛡️ Integridade de Dados:** Prevenção de duplicatas via chave única composta e MD5 de arquivo.
-- **📂 Organização por Pastas:** Gerenciamento dinâmico de itens entre pastas personalizadas ou Caixa de Entrada com validações de duplicidade.
-- **🕵️ Sistema de Auditoria & Rastreabilidade Premium:** Registro completo com "Business Key" (Agência, CTe, NF, Valor, Emissão) que garante a identificação de itens mesmo após a exclusão.
-- **📊 Dashboard com Analytics em Modais:** Novas visões de Geografia do Fluxo e Fila de Importação em modais dedicados, limpando o layout principal.
-- **🛡️ Estabilidade e UX:** Tratamento de erros para nomes de pastas duplicados e interface de auditoria sincronizada entre ações individuais e em lote.
-- **🛠️ Edição Inline Premium:** Atualização rápida de dados via tabela com feedback visual silencioso e gravação assíncrona.
+- **📦 Importação Inteligente (Excel):** Mapeamento automático e tolerante a falhas de 29 colunas técnicas com múltiplos *aliases*. Validação estrita de dados em tempo real utilizando Zod e feedback claro para o usuário sobre linhas inconsistentes.
+- **🛡️ Integridade de Dados e Prevenção:** Bloqueio robusto de duplicatas via chave única composta e verificação MD5 do arquivo base. Validação automatizada para pastas com nomes idênticos e operações já existentes.
+- **📂 Workflow em Pastas e Kanban:** Gerenciamento dinâmico de itens transitando entre a Caixa de Entrada e Pastas personalizadas. Integração nativa com exibição em Kanban para visualização clara de status e progresso das aprovações.
+- **🔍 Busca Universal Avançada:** Sistema de pesquisa integrado e otimizado cobrindo atributos chaves em todas as listagens: *ID da operação, Agência, Filial, Lote, Placa, CT-e, Nota Fiscal (NF), entre outros*.
+- **🕵️ Sistema de Auditoria & Rastreabilidade Premium:** Registro forense de operações mantendo o contexto (Agência, CTe, NF, Valor, Emissão) acessível mesmo depois da exclusão lógica ou física do item. Interface unificada para ações individuais e em lote.
+- **📊 Dashboard com Analytics em Modais:** Painéis estratégicos destacando a Geografia do Fluxo e a Fila de Importação renderizados em modais dedicados, preservando espaço nobre da interface para dados acionáveis.
+- **🛠️ Edição Inline Premium:** Edição interativa diretamente nas células da tabela. Validação local, formatação automática (`R$`, Numérico, Data), seleção suspensa para "Status" e salvamento assíncrono com feedback visual silencioso (sem recarregar a página).
 
 ---
 
@@ -30,27 +30,30 @@ O **Logicell** é uma plataforma corporativa premium para gerenciamento de opera
 | **Framework** | React Router v7 (Framework Mode) |
 | **Auth & Backend** | Supabase (SSR Auth & Storage) |
 | **Linguagem** | TypeScript |
+| **Validação** | Zod |
 | **Banco de Dados** | PostgreSQL |
 | **ORM** | Prisma |
-| **Runtime** | Bun v1.3+ |
-| **Estilização** | Tailwind CSS (Design Premium) |
+| **Estilização** | Tailwind CSS (Utilitários avançados, twMerge, clsx) |
+| **Componentes e Ícones**| Recharts (Gráficos), Lucide React (Ícones) |
 
 ---
 
-## 📂 Estrutura do Projeto
+## 📂 Estrutura Arquitetural
 
 ```text
 ├── app/
-│   ├── context/       # AuthProvider (Supabase Context)
-│   ├── routes/        # Rotas Full-stack (Dashboard, Inbox, Login)
+│   ├── components/    # Componentes Premium reutilizáveis (Ex: EditableCell)
+│   ├── context/       # Provedores de Estado e AuthProvider (Supabase Context)
+│   ├── routes/        # Rotas Full-stack via React Router v7 (Dashboard, Inbox, Login, Pastas)
 │   ├── services/      # SSR Services (Supabase, Operação, Sessão)
+│   ├── utils/         # Helpers p/ parser Excel, formatações (Data, Moeda) e DateParser
 │   ├── root.tsx       # Layout Global e UI Context
 │   └── entry.server.tsx
 ├── prisma/
-│   ├── schema.prisma  # Modelagem (Operacao, Pasta, Auditoria, Importacao)
-│   └── migrations/    # Evolução do Banco
-├── .env.example       # Template de ambiente
-└── bun.lock           # Lockfile de dependências
+│   ├── schema.prisma  # Modelagem ORM (Operacao, Pasta, Auditoria, Importacao)
+│   └── migrations/    # Versionamento do Banco de Dados
+├── .env.example       # Template de Variáveis de Ambiente
+└── bun.lock           # Gerenciamento determinístico de pacotes do Bun
 ```
 
 ---
@@ -58,39 +61,38 @@ O **Logicell** é uma plataforma corporativa premium para gerenciamento de opera
 ## 🏁 Primeiros Passos
 
 ### Pré-requisitos
-- **Bun** instalado.
-- Projeto no **Supabase** configurado.
+- Projeto e chaves criadas no **[Supabase](https://supabase.com/)**.
+- Banco de Dados PostgreSQL configurado.
 
 ### Instalação e Execução
 
-1. **Instalar dependências**
+1. **Instale as dependências**
    ```bash
    bun install
    ```
 
-2. **Configurar Variáveis de Ambiente**
-   Crie um `.env` com base no `.env.example`:
-   ```env
-   DATABASE_URL="postgresql://postgres:password@db.supabase.co:5432/postgres"
-   DIRECT_URL="postgresql://postgres:password@db.supabase.co:5432/postgres"
-   SUPABASE_URL="https://your-project.supabase.co"
-   SUPABASE_ANON_KEY="your-anon-key"
-   SESSION_SECRET="sua-chave-secreta"
-   ```
+2. **Configure o Ambiente**
+   Crie ou renomeie o arquivo `.env` baseando-se no `.env.example` e declare suas variáveis correspondentes de acesso ao Supabase (URL e chaves) e Banco de Dados (`DATABASE_URL`).
 
-3. **Migrar o Banco de Dados**
+3. **Gere os Tipos e Migre o Banco de Dados**
    ```bash
-   bun x prisma migrate dev
+   bun run generate
+   bun run migrate
    ```
 
-4. **Iniciar em Desenvolvimento**
+4. **Inicie o Servidor de Desenvolvimento**
    ```bash
    bun run dev
    ```
 
 ---
 
-## 📋 Mapeamento de Dados (29 Colunas Técnicas)
+## 📋 Mapeamento de Dados e Negócio
 
-Agência, Emissão, Código, Cliente, CNPJ Raiz, CNPJ Pagador, CTe, Status, Observação, Tipo Doc, Remetente, Origem, UF Origem, Destinatário, Destino, UF Destino, Produto, Peso, Tarifa, Total R$, NF, Placa, Matriz, Contrato, Chave de Acesso, Usuário, Tipo CTe, Proprietário e Motorista.
+### As 29 Colunas Técnicas Processadas
+O utilitário remoto `ExcelParser` reconhece automaticamente as seguintes informações: 
+
+`Agência`, `Emissão`, `Código`, `Cliente`, `CNPJ Raiz`, `CNPJ Pagador`, `CT-e / CTRC`, `Status`, `Observação`, `Tipo Doc`, `Remetente`, `Origem`, `UF Origem`, `Destinatário`, `Destino`, `UF Destino`, `Produto`, `Peso`, `Tarifa`, `Total R$`, `NF`, `Placa`, `Matriz`, `Contrato`, `Chave de Acesso`, `Usuário Lançamento`, `Tipo CT-e`, `Proprietário` e `Motorista`.
+
+O sistema converte os dados brutos realizando tratativas proativas (como remover espaços da nomenclatura de agências) e tipagem rigorosa na interpretação utilizando **Zod**, assegurando estabilidade na criação das tuplas no banco de dados.
 

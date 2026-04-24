@@ -9,7 +9,8 @@ export const MAPA_USUARIOS: Record<string, string> = {
   "faturamento10@borgnotransportes.com.br": "Anna Martins",
   "faturamento6@borgnotransportes.com.br": "Alici Vieira",
   "faturamento4@borgnotransportes.com.br": "Bruno Silveira",
-  "alexandre.ramos@borgnotransportes.com.br": "Alexandre Ramos"
+  "alexandre.ramos@borgnotransportes.com.br": "Alexandre Ramos",
+  "admin.admin@borgnotransportes.com.br": "Administrador"
 };
 
 /**

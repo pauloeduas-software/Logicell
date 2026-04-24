@@ -13,7 +13,7 @@ O **Logicell** é uma plataforma corporativa premium para gerenciamento de opera
 ## ✨ Funcionalidades Principais
 
 - **🔐 Autenticação Segura (Supabase):** Sistema de login corporativo com proteção de rotas via Server-Side Auth.
-- **📦 Importação Inteligente (Excel):** Mapeamento automático e tolerante a falhas de 29 colunas técnicas com múltiplos *aliases*. Validação estrita de dados em tempo real utilizando Zod e feedback claro para o usuário sobre linhas inconsistentes. Sincronização inteligente da Caixa de Entrada com exclusão automática de itens órfãos e preservação de itens vinculados a pastas.
+- **📦 Importação Inteligente (Excel):** Mapeamento automático e tolerante a falhas de 29 colunas técnicas com múltiplos *aliases*. Validação estrita de dados em tempo real utilizando Zod e feedback claro para o usuário sobre linhas inconsistentes. Sincronização inteligente da Caixa de Entrada e pastas com exclusão automática de itens órfãos e preservação de itens duplicados.
 - **🛡️ Integridade de Dados e Prevenção:** Bloqueio robusto de duplicatas via chave única composta e verificação MD5 do arquivo base. Validação automatizada para pastas com nomes idênticos e operações já existentes.
 - **📂 Workflow em Pastas:** Gerenciamento dinâmico de itens transitando entre a Caixa de Entrada e Pastas personalizadas, com movimentação em lote e seleção individual.
 - **🔍 Busca Universal Avançada:** Sistema de pesquisa integrado e otimizado cobrindo atributos chaves em todas as listagens: *ID da operação, Agência, Filial, Lote, Placa, CT-e, Nota Fiscal (NF), entre outros*.

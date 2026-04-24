@@ -50,13 +50,12 @@ export class OperacaoService {
     // 1. Assinaturas da Planilha Nova
     const spreadsheetSignatures = new Set(spreadsheetOps.map(getSig));
 
-    // 2. Buscar itens atuais da Caixa de Entrada
+    // 2. Buscar TODOS os itens existentes (Caixa de Entrada + todas as Pastas)
     const inboxItems = await prisma.operacao.findMany({
-      where: { pastaId: null },
       select: { id: true, nm_agencia: true, nr_ctrc: true, nr_nf: true, vl_total: true, dt_emissao_: true }
     });
 
-    // 3. Identificar o que está na Inbox mas NÃO na planilha nova -> DELETAR
+    // 3. Identificar o que está em qualquer lugar mas NÃO na planilha nova -> DELETAR
     const idsParaApagar = inboxItems
       .filter(item => !spreadsheetSignatures.has(getSig(item)))
       .map(item => item.id);

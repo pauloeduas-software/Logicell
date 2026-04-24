@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { 
   Search, Download, Landmark, Truck, FolderPlus, 
   ChevronDown, CheckCircle2, Table as TableIcon, 
-  Trash2, UploadCloud, Loader2, AlertTriangle, History
+  Trash2, UploadCloud, Loader2, AlertTriangle, History, LayoutDashboard
 } from "lucide-react";
 import { useUI } from "~/root";
 import { MESSAGES } from "~/constants/messages";
@@ -15,18 +15,20 @@ import { AuditoriaModal } from "./AuditoriaModal";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { EditableCell } from "./EditableCell";
+import { StatsView } from "./StatsView";
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
 interface OperacoesViewProps {
   dadosPromise: any;
   agenciasPromise: any;
+  statsPromise?: any;
   nomePasta: string;
   pastaId?: number | null;
   showImport?: boolean;
 }
 
-export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaId = null, showImport = true }: OperacoesViewProps) {
+export function OperacoesView({ dadosPromise, agenciasPromise, statsPromise, nomePasta, pastaId = null, showImport = true }: OperacoesViewProps) {
   const rootData = useRouteLoaderData("root") as any;
   const pastas = rootData?.pastas || [];
   
@@ -53,6 +55,8 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
 
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [showPastaMenu, setShowPastaMenu] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
   const [auditoriaModalId, setAuditoriaModalId] = useState<number | null>(null);
 
   const carregando = fetcher.state !== "idle" || fetcher.formData !== undefined;
@@ -184,23 +188,30 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
 
   return (
     <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-in fade-in duration-500">
-      
+            
       {/* TOOLBAR */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl shadow-sm flex flex-col xl:flex-row gap-3 items-center justify-between shrink-0">
         <div className="flex items-center gap-3 flex-1 w-full">
-          {showImport && (
-            <label className="flex items-center justify-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm group shrink-0">
-              {carregando ? <Loader2 size={16} className="animate-spin text-indigo-500" /> : <UploadCloud size={16} className="text-slate-400 group-hover:text-indigo-500" />}
-              <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">Importar</span>
-              <input type="file" className="hidden" accept=".xls,.xlsx" onChange={lidarUpload} disabled={carregando} />
-            </label>
-          )}
+          <input type="file" id="import-input" className="hidden" accept=".xls,.xlsx" onChange={lidarUpload} disabled={carregando} />
 
           {!showImport && (
-            <div className="flex items-center gap-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl shrink-0">
-              {carregando ? <Loader2 size={16} className="animate-spin text-indigo-500" /> : <Truck className="text-indigo-500" size={16} />}
+            <button 
+              onClick={() => setShowStatsModal(true)}
+              className="flex items-center gap-3 px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl shrink-0 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors group"
+            >
+              {carregando ? <Loader2 size={16} className="animate-spin text-indigo-500" /> : <LayoutDashboard size={16} className="text-indigo-500 group-hover:scale-110 transition-transform" />}
               <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{nomePasta}</span>
-            </div>
+            </button>
+          )}
+
+          {showImport && (
+            <button 
+              onClick={() => setShowStatsModal(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 transition-all group shrink-0"
+            >
+              {carregando ? <Loader2 size={16} className="animate-spin text-indigo-500" /> : <LayoutDashboard size={16} className="text-indigo-500" />}
+              <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">Dashboard</span>
+            </button>
           )}
 
           <div className="relative flex-1">
@@ -257,8 +268,41 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
             <Await resolve={dadosPromise}>
               {(resultado: any) => (
                 <>
-                  <button onClick={() => excluirSelecionados(resultado.meta.total)} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-rose-500/20 hover:bg-rose-700 transition-colors"><Trash2 size={16} /></button>
-                  <button onClick={() => exportarExcel(resultado.data)} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all"><Download size={16} /> Exportar</button>
+                  <button onClick={() => excluirSelecionados(resultado.meta.total)} className="flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-rose-500/20 hover:bg-rose-700 transition-colors group shrink-0">
+                    <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
+                  </button>
+
+                  <div className="relative flex-1 xl:flex-none">
+                    <button 
+                      onClick={() => setShowActionsMenu(!showActionsMenu)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all shrink-0"
+                    >
+                      <Download size={16} />
+                      Opções
+                      <ChevronDown size={12} className={cn("transition-transform", showActionsMenu && "rotate-180")} />
+                    </button>
+
+                    {showActionsMenu && (
+                      <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-[60] overflow-hidden animate-in zoom-in-95 duration-200">
+                        {showImport && (
+                          <label htmlFor="import-input" className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-300 cursor-pointer border-b border-slate-100 dark:border-slate-800">
+                            <UploadCloud size={16} className="text-indigo-500" />
+                            <span>Importar Planilha</span>
+                          </label>
+                        )}
+                        <button 
+                          onClick={() => {
+                            exportarExcel(resultado.data);
+                            setShowActionsMenu(false);
+                          }} 
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-bold text-slate-600 dark:text-slate-300"
+                        >
+                          <Download size={16} className="text-emerald-500" />
+                          <span>Exportar Excel</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </Await>
@@ -374,13 +418,6 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total: {meta.total} registros</div>
-                        <button 
-                          onClick={() => setAuditoriaModalId(-1)}
-                          title="Ver Histórico de Alterações desta Pasta"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                        >
-                          <History size={14} />
-                        </button>
                       </div>
                       <select 
                         value={searchParams.get("limit") || "100"} 
@@ -416,6 +453,28 @@ export function OperacoesView({ dadosPromise, agenciasPromise, nomePasta, pastaI
           title={auditoriaModalId === -1 ? `Histórico: ${nomePasta}` : "Edições da Operação"}
           onClose={() => setAuditoriaModalId(null)} 
         />
+      )}
+
+      {showStatsModal && statsPromise && (
+        <Suspense fallback={null}>
+          <Await resolve={statsPromise}>
+            {(stats: any) => (
+              <StatsView 
+                stats={stats} 
+                nomePasta={nomePasta} 
+                onClose={() => setShowStatsModal(false)} 
+                onOpenHistory={() => {
+                  setShowStatsModal(false);
+                  setAuditoriaModalId(-1);
+                }}
+                onApplyFilter={(status) => {
+                  setFilters(p => ({ ...p, status }));
+                  setShowStatsModal(false);
+                }}
+              />
+            )}
+          </Await>
+        </Suspense>
       )}
     </div>
   );

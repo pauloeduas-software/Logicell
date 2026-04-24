@@ -35,11 +35,39 @@ export class OperacaoService {
     });
 
     const parsedData = ExcelParser.analisarBuffer(buffer, importacao.id);
+    const spreadsheetOps = parsedData.operacoes;
 
-    // SISTEMA SÍNCRONO: O usuário prefere esperar o carregamento real do que ter um "falso rápido".
-    // Aguardamos todo o tráfego do banco terminar para a tela recarregar já com os dados presentes.
+    // Gerador de assinatura única compatível com a constraint @@unique do DB
+    const getSig = (op: any) => {
+      const ag = String(op.nm_agencia || "").trim().toUpperCase();
+      const ctrc = String(op.nr_ctrc || "").trim();
+      const nf = String(op.nr_nf || "").trim();
+      const vl = op.vl_total ? Number(op.vl_total).toFixed(2) : "0.00";
+      const dt = op.dt_emissao_ instanceof Date ? op.dt_emissao_.getTime() : 0;
+      return `${ag}|${ctrc}|${nf}|${vl}|${dt}`;
+    };
+
+    // 1. Assinaturas da Planilha Nova
+    const spreadsheetSignatures = new Set(spreadsheetOps.map(getSig));
+
+    // 2. Buscar itens atuais da Caixa de Entrada
+    const inboxItems = await prisma.operacao.findMany({
+      where: { pastaId: null },
+      select: { id: true, nm_agencia: true, nr_ctrc: true, nr_nf: true, vl_total: true, dt_emissao_: true }
+    });
+
+    // 3. Identificar o que está na Inbox mas NÃO na planilha nova -> DELETAR
+    const idsParaApagar = inboxItems
+      .filter(item => !spreadsheetSignatures.has(getSig(item)))
+      .map(item => item.id);
+
+    if (idsParaApagar.length > 0) {
+      await prisma.operacao.deleteMany({ where: { id: { in: idsParaApagar } } });
+    }
+
+    // 4. Inserir novos itens (skipDuplicates garante que itens já em pastas não sejam duplicados)
     const resultado = await prisma.operacao.createMany({ 
-      data: parsedData.operacoes as any,
+      data: spreadsheetOps as any,
       skipDuplicates: true 
     });
 
@@ -51,7 +79,6 @@ export class OperacaoService {
     PastaService.invalidarCache();
     OperacaoService.invalidarCache(); 
 
-    // Retorno VERDADEIRO consultando as colunas ignoradas e adicionadas diretamente do Prisma.
     return { 
       totalLido: parsedData.totalLido, 
       adicionados: resultado.count, 

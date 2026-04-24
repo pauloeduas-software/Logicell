@@ -1,4 +1,5 @@
 import { X, FileSpreadsheet, Clock, Calendar } from "lucide-react";
+import { buscarNomeUsuario } from "~/constants/usuarios";
 
 interface Importacao {
   id: number;
@@ -65,7 +66,7 @@ export function ImportacaoModal({ importacoes, onClose }: ImportacaoModalProps) 
                       <span className="text-[9px] font-bold">{new Date(imp.createdAt).toLocaleString('pt-BR')}</span>
                     </div>
                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                       POR: <span className="text-blue-500">{imp.usuario}</span>
+                      POR: <span className="text-blue-500">{buscarNomeUsuario(imp.usuario)}</span>
                     </div>
                   </div>
                 </div>

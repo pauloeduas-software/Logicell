@@ -3,6 +3,7 @@ import { useFetcher } from "react-router";
 import { X, History, Clock, ArrowRight, User, Trash2, Edit3, PlusCircle, LayoutList, ChevronDown, ListFilter } from "lucide-react";
 import { COLUNAS_OPERACAO } from "~/constants/operacoes";
 import { formatarMoeda, formatarData } from "~/utils/formatters";
+import { buscarNomeUsuario } from "~/constants/usuarios";
 
 interface AuditoriaModalProps {
   operacaoId?: number | null;
@@ -138,7 +139,7 @@ export function AuditoriaModal({ operacaoId, pastaId, title = "Histórico de Edi
               className="flex-1 bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest text-slate-500 focus:text-indigo-600 transition-colors cursor-pointer appearance-none"
             >
               <option value="">TODOS OS USUÁRIOS</option>
-              {usuariosDisponiveis.map(u => <option key={u} value={u} className="dark:bg-slate-900">{u}</option>)}
+              {usuariosDisponiveis.map(u => <option key={u} value={u} className="dark:bg-slate-900">{buscarNomeUsuario(u)}</option>)}
             </select>
             <ChevronDown size={12} className="opacity-40" />
           </div>
@@ -177,7 +178,7 @@ export function AuditoriaModal({ operacaoId, pastaId, title = "Histórico de Edi
                           {labelCampo ? `Alterou ${labelCampo}` : labelAcao}
                         </span>
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
-                          {log.usuario} • {new Date(log.createdAt).toLocaleString('pt-BR')}
+                          {buscarNomeUsuario(log.usuario)} • {new Date(log.createdAt).toLocaleString('pt-BR')}
                         </p>
                       </div>
                       
@@ -188,7 +189,7 @@ export function AuditoriaModal({ operacaoId, pastaId, title = "Histórico de Edi
                       <div className="space-y-2">
                         {log.tipo === 'BULK_MOVE' && (
                           <div className="text-[10px] font-bold text-slate-500 bg-amber-500/5 p-2 rounded-xl border border-amber-500/10 mb-2">
-                             Mover de <span className="text-amber-600">{details?.origem}</span> Para <span className="text-amber-600">{details?.destino}</span>
+                            Mover de <span className="text-amber-600">{details?.origem}</span> Para <span className="text-amber-600">{details?.destino}</span>
                           </div>
                         )}
                         <button 
@@ -199,20 +200,20 @@ export function AuditoriaModal({ operacaoId, pastaId, title = "Histórico de Edi
                         </button>
                         {showBulkDetails === String(log.id) && (
                           <div className="p-3 bg-white dark:bg-black/20 rounded-xl border border-slate-200 dark:border-white/5 max-h-40 overflow-y-auto space-y-1.5 custom-scrollbar">
-                             {(Array.isArray(details) ? details : (details?.itens || [])).map((i: any, idx: number) => {
-                               const itemData = {
-                                 agencia: i.agencia,
-                                 ctrc: i.ctrc,
-                                 nf: i.nf,
-                                 total: i.total,
-                                 emissao: i.emissao
-                               };
-                               return (
-                                 <div key={idx} className="bg-slate-50 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
-                                   <BusinessTags data={itemData} />
-                                 </div>
-                               );
-                             })}
+                            {(Array.isArray(details) ? details : (details?.itens || [])).map((i: any, idx: number) => {
+                              const itemData = {
+                                agencia: i.agencia,
+                                ctrc: i.ctrc,
+                                nf: i.nf,
+                                total: i.total,
+                                emissao: i.emissao
+                              };
+                              return (
+                                <div key={idx} className="bg-slate-50 dark:bg-zinc-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-white/5">
+                                  <BusinessTags data={itemData} />
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

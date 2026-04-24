@@ -4,6 +4,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { AlertTriangle } from "lucide-react";
 import { requireUser } from "~/services/auth.server";
 import { OperacaoService } from "~/services/operacao.server";
+import { DashboardService } from "~/services/dashboard.server";
 import { OperacoesView } from "~/components/OperacoesView";
 
 export const shouldRevalidate = ({ formData, defaultShouldRevalidate }: any) => {
@@ -18,10 +19,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
   
   const resultadoPromise = OperacaoService.listarOperacoes(params);
   const agenciasPromise = OperacaoService.buscarAgencias();
+  const statsPromise = DashboardService.getDashboardMetrics(null);
 
   return data({ 
     dadosPromise: resultadoPromise, 
     agenciasPromise,
+    statsPromise,
     nomePasta: "Caixa de Entrada" 
   }, { headers: response.headers });
 }
@@ -57,12 +60,13 @@ export function ErrorBoundary() {
 }
 
 export default function Inbox() {
-  const { dadosPromise, agenciasPromise, nomePasta } = useLoaderData<typeof loader>();
+  const { dadosPromise, agenciasPromise, statsPromise, nomePasta } = useLoaderData<typeof loader>();
 
   return (
     <OperacoesView 
       dadosPromise={dadosPromise}
       agenciasPromise={agenciasPromise}
+      statsPromise={statsPromise}
       nomePasta={nomePasta}
       showImport={true}
     />

@@ -20,6 +20,7 @@ import { getUser } from "./services/auth.server";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { MESSAGES } from "./constants/messages";
 import { useActionFeedback } from "./hooks/use-action-feedback";
+import { buscarNomeUsuario } from "~/constants/usuarios";
 import "./tailwind.css";
 
 function cn(...classes: (string | boolean | undefined)[]) {
@@ -64,7 +65,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 }
 
-export function action() {
+export async function action({ request }: ActionFunctionArgs) {
+  const { getUser, createSupabaseServerClient } = await import("./services/auth.server");
+  const { supabase } = await createSupabaseServerClient(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "updateNickname") {
+    const nickname = formData.get("nickname") as string;
+    const { error } = await supabase.auth.updateUser({
+      data: { nickname }
+    });
+    if (error) return { error: error.message };
+    return { success: true };
+  }
+
   return null;
 }
 
@@ -346,14 +361,16 @@ export default function App() {
           </button>
 
           {!isCollapsed && data?.user && (
-            <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-xl mb-1">
-              <div className="flex items-center gap-2.5">
+            <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-xl mb-1 group/user relative">
+              <div className="flex items-center gap-2.5 overflow-hidden">
                 <div className="p-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-500">
                   <UserIcon size={14} />
                 </div>
                 <div className="overflow-hidden">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Usuário</p>
-                  <p className="text-[11px] font-bold truncate">{data.user.user_metadata?.nome || data.user.email}</p>
+                  <p className="text-[11px] font-bold truncate">
+                    {buscarNomeUsuario(data.user.email || "", data.user.user_metadata?.nickname || data.user.user_metadata?.nome)}
+                  </p>
                 </div>
               </div>
             </div>

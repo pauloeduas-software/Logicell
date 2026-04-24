@@ -16,6 +16,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { formatarMoeda, formatarNumero } from "~/utils/formatters";
 
 import { DashboardService } from "~/services/dashboard.server";
+import { buscarNomeUsuario } from "~/constants/usuarios";
 
 const CORES = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e'];
 
@@ -351,7 +352,7 @@ export default function Dashboard() {
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-[8px] font-bold text-slate-400 uppercase">{new Date(imp.createdAt).toLocaleDateString('pt-BR')}</p>
-                  <p className="text-[8px] font-black text-blue-500 uppercase">POR: {imp.usuario}</p>
+                  <p className="text-[8px] font-black text-blue-500 uppercase">POR: {buscarNomeUsuario(imp.usuario)}</p>
                 </div>
                 <span className="text-[9px] font-black bg-blue-500/10 text-blue-600 px-2 py-0.5 rounded-lg">
                   {imp.qtdRegistros} Regs

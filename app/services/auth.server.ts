@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 import { createSupabaseServerClient } from "./supabase.server";
+export { createSupabaseServerClient };
 
 /**
  * Helper para garantir que o usuário está logado no lado do servidor.

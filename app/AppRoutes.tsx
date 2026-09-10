@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import { useAuth } from "~/context/AuthContext";
 import { AppLayout } from "~/components/AppLayout";
 import { LoginPage } from "~/pages/LoginPage";
+import { DashboardPage } from "~/pages/DashboardPage";
 import { OperacoesPage } from "~/pages/OperacoesPage";
 import { AutomacoesPage } from "~/pages/AutomacoesPage";
 import { UsuariosPage } from "~/pages/UsuariosPage";
@@ -48,6 +49,7 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/caixa-de-entrada" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="caixa-de-entrada" element={<OperacoesPage />} />
           <Route path="pastas/:nome" element={<OperacoesPage />} />
           <Route path="automacoes" element={<AutomacoesPage />} />

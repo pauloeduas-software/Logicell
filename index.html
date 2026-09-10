@@ -11,6 +11,13 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap"
     />
+    <script>
+      try {
+        if (localStorage.getItem("logicell-theme") === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch {}
+    </script>
   </head>
   <body class="h-full bg-bg text-text antialiased overflow-hidden w-screen font-sans">
     <div id="root"></div>

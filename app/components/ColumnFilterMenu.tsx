@@ -28,6 +28,11 @@ export function ColumnFilterMenu({ openFilterCol, setOpenFilterCol, columnFilter
   const isDateColumn = DATA_COLUMNS.includes(openFilterCol.key);
   const currentFilter = columnFilters[openFilterCol.key];
   const isPeriod = currentFilter?.type === "period";
+  const isValueless =
+    currentFilter?.type === "blank" ||
+    currentFilter?.type === "notBlank" ||
+    currentFilter?.type === "antigos" ||
+    currentFilter?.type === "duplicados";
   const periodParts = isPeriod ? (currentFilter?.value || ";").split(";") : ["", ""];
   const deInput = brToInput(periodParts[0]);
   const ateInput = brToInput(periodParts[1]);
@@ -71,6 +76,8 @@ export function ColumnFilterMenu({ openFilterCol, setOpenFilterCol, columnFilter
           <option value="blank" className="bg-card-bg text-text">Vazio (Em branco)</option>
           <option value="notBlank" className="bg-card-bg text-text">Não Vazio</option>
           {isDateColumn && <option value="period" className="bg-card-bg text-text">Período</option>}
+          {openFilterCol.key === "dt_emissao_" && <option value="antigos" className="bg-card-bg text-text">Antigos</option>}
+          {openFilterCol.key === "ds_placa" && <option value="duplicados" className="bg-card-bg text-text">Duplicados</option>}
         </select>
 
         {isPeriod ? (
@@ -95,7 +102,7 @@ export function ColumnFilterMenu({ openFilterCol, setOpenFilterCol, columnFilter
             </label>
           </div>
         ) : (
-          (columnFilters[openFilterCol.key]?.type !== "blank" && columnFilters[openFilterCol.key]?.type !== "notBlank") && (
+          !isValueless && (
           <input 
             type="text" 
             placeholder="Digite o valor..."

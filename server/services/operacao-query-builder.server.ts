@@ -1,4 +1,55 @@
+import { PrazoService, type PrazoRegras } from "./prazo.server";
+
+const MILIS_DIA = 24 * 60 * 60 * 1000;
+
 export class OperacaoQueryBuilder {
+  // Condição SQL de "emissão antiga": fora do prazo padrão ou do prazo
+  // específico do cliente (nm_pessoa_pagador). Compartilhada com
+  // `emissoesAntigasPorPasta` para que o filtro e os contadores batam.
+  static construirCondicaoAntigas(regras: PrazoRegras, params: any[], alias = "o"): string {
+    const agora = Date.now();
+    const clienteExpr = `UPPER(COALESCE(BTRIM(${alias}.nm_pessoa_pagador), ''))`;
+
+    // Agrupa as exceções pelo mesmo número de dias para reduzir condições no SQL
+    const buckets = new Map<number, string[]>();
+    for (const [cliente, dias] of Object.entries(regras.porCliente)) {
+      const lista = buckets.get(dias) ?? [];
+      lista.push(cliente);
+      buckets.set(dias, lista);
+    }
+
+    const todasExcecoes = [...Object.keys(regras.porCliente)];
+    const filters: string[] = [];
+
+    // Clientes sem exceção (ou sem cliente) usam o prazo padrão
+    params.push(todasExcecoes);
+    params.push(new Date(agora - regras.padraoDias * MILIS_DIA));
+    filters.push(
+      `(NOT (${clienteExpr} = ANY($${params.length - 1}::text[]))
+        AND ${alias}.dt_emissao_ < $${params.length})`
+    );
+
+    // Cada exceção usa o seu próprio prazo
+    for (const [dias, clientes] of buckets.entries()) {
+      params.push(clientes);
+      params.push(new Date(agora - dias * MILIS_DIA));
+      filters.push(
+        `(${clienteExpr} = ANY($${params.length - 1}::text[])
+          AND ${alias}.dt_emissao_ < $${params.length})`
+      );
+    }
+
+    return `(${filters.join(" OR ")})`;
+  }
+
+  // Verifica se um filtro de coluna (ex.: colFilter_ds_placa) tem o tipo informado.
+  private static temFiltro(filtros: any, colName: string, type: string): boolean {
+    const val = filtros?.[`colFilter_${colName}`];
+    if (typeof val !== "string") return false;
+    const sep = val.indexOf(":");
+    return (sep > -1 ? val.substring(0, sep) : val) === type;
+  }
+
   static processarFiltrosDinamicos(filtros: any, whereAnd: string[], params: any[]) {
     const colunasValidas = [
       "nm_agencia", "cd_pessoa_pagador", "nm_pessoa_pagador", "nr_cpf_cnpj_raiz", 
@@ -89,7 +140,7 @@ export class OperacaoQueryBuilder {
     }
   }
 
-  static construirWhere(pastaId: any, filtros: any, excludedIds: number[] = []) {
+  static async construirWhere(pastaId: any, filtros: any, excludedIds: number[] = []) {
     const whereAnd: string[] = [];
     const params: any[] = [];
 
@@ -100,9 +151,29 @@ export class OperacaoQueryBuilder {
       whereAnd.push(`${condition} $${params.length}`);
     };
 
+    const pid = pastaId && pastaId !== "null" ? Number(pastaId) : null;
 
-    if (pastaId && pastaId !== "null") { 
-      addFilter(`"pastaId" =`, Number(pastaId)); 
+    // Filtros especiais por coluna (sem valor digitado, baseados em regra de negócio)
+    if (this.temFiltro(filtros, "dt_emissao_", "antigos")) {
+      const regras = await PrazoService.regras();
+      whereAnd.push(`(o.dt_emissao_ IS NOT NULL AND ${this.construirCondicaoAntigas(regras, params)})`);
+    }
+    if (this.temFiltro(filtros, "ds_placa", "duplicados")) {
+      params.push(pid);
+      whereAnd.push(
+        `(o.ds_placa IS NOT NULL AND BTRIM(o.ds_placa) <> '' AND UPPER(BTRIM(o.ds_placa)) IN (
+           SELECT UPPER(BTRIM(d.ds_placa))
+           FROM "Operacao" d
+           WHERE d.ds_placa IS NOT NULL AND BTRIM(d.ds_placa) <> ''
+             AND d."pastaId" IS NOT DISTINCT FROM $${params.length}
+           GROUP BY UPPER(BTRIM(d.ds_placa))
+           HAVING COUNT(*) > 1
+         ))`
+      );
+    }
+
+    if (pid !== null) { 
+      addFilter(`"pastaId" =`, pid); 
     } else { 
       whereAnd.push(`"pastaId" IS NULL`); 
     }

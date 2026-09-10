@@ -1,4 +1,4 @@
-import { CheckCircle2, Inbox, Moon, Plus, Search, ShieldCheck, Sun, Truck, User as UserIcon, X, Zap, Loader2, Menu } from "lucide-react";
+import { CheckCircle2, Inbox, LayoutDashboard, Moon, Plus, Search, ShieldCheck, Sun, Truck, User as UserIcon, X, Zap, Loader2, Menu } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { NavLink } from "react-router";
 import { useIsFetching } from "@tanstack/react-query";
@@ -99,6 +99,15 @@ export const Sidebar = React.memo(({
         <div>
           <p className={`${isCollapsed ? 'hidden' : 'px-3'} text-[9px] font-bold text-text-muted uppercase tracking-[0.1em] mb-3`}>Principal</p>
           <div className="space-y-0.5">
+            <NavLink to="/dashboard" className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
+              {() => (
+                <div className="flex items-center gap-2.5">
+                  <LayoutDashboard size={18} className="shrink-0" />
+                  {!isCollapsed && <span>Dashboard</span>}
+                </div>
+              )}
+            </NavLink>
+
             <NavLink to="/caixa-de-entrada" onMouseEnter={() => prefetchOperacoes(null)} title={emissaoAntigasPorPasta.inbox ? `${emissaoAntigasPorPasta.inbox} emissão(ões) antiga(s) na Caixa de Entrada` : undefined} className={({ isActive }) => `flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative ${isActive ? 'text-primary bg-primary/10 dark:bg-transparent before:absolute before:-left-2 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-primary before:rounded-r' : 'text-text-muted hover:text-text hover:bg-surface-light'}`}>
               {({ isActive }) => (
                 <>

@@ -24,7 +24,7 @@ export class OperacaoService {
   private static countCache = new Map<string, { count: number; totalVl: number; timestamp: number }>();
   // Placas duplicadas por pasta (Caixa de Entrada = pastaId null)
   private static dupsCache = new Map<string, { placas: Set<string>; timestamp: number }>();
-  private static antigasCache: { porPasta: Record<string, number>; timestamp: number } | null = null;
+  private static antigasCache: { porPasta: Record<string, { quantidade: number; valor: number }>; timestamp: number } | null = null;
   private static readonly CACHE_TTL = 1000 * 60 * 5; // 5 minutos
   private static readonly SHORT_TTL = 1000 * 30;    // 30 segundos
   private static readonly COUNT_CACHE_TTL = 1000 * 60; // 60 segundos
@@ -73,7 +73,7 @@ export class OperacaoService {
     const offset = (p - 1) * l;
 
     const orderClause = this.montarOrderBy(filtros);
-    const whereClause = OperacaoQueryBuilder.construirWhere(pastaId, filtros);
+    const whereClause = await OperacaoQueryBuilder.construirWhere(pastaId, filtros);
     const cacheKey = JSON.stringify({ sql: whereClause.sql, params: whereClause.params });
     const cachedEntry = this.countCache.get(cacheKey);
     const isCountCached = cachedEntry && Date.now() - cachedEntry.timestamp < this.COUNT_CACHE_TTL;
@@ -153,7 +153,7 @@ export class OperacaoService {
 
   static async listarIds(filtros: any, excludedIds: number[] = []) {
     const { pastaId } = filtros;
-    const whereClause = OperacaoQueryBuilder.construirWhere(pastaId, filtros, excludedIds);
+    const whereClause = await OperacaoQueryBuilder.construirWhere(pastaId, filtros, excludedIds);
     const ids: any[] = await prisma.$queryRawUnsafe(`SELECT id FROM "Operacao" o ${whereClause.sql}`, ...whereClause.params);
     return ids.map(i => i.id);
   }
@@ -194,60 +194,43 @@ export class OperacaoService {
     return placas;
   }
 
-  // Contagem de operações com emissão anterior ao prazo vigente, agrupada por
-  // pasta (chave "inbox" = Caixa de Entrada / pastaId null; demais chaves = id da pasta).
-  static async contarEmissoesAntigasPorPasta(): Promise<Record<string, number>> {
+  // Emissões com atraso por pasta, com quantidade e valor (chave "inbox" =
+  // Caixa de Entrada / pastaId null; demais chaves = id da pasta).
+  static async emissoesAntigasPorPasta(): Promise<Record<string, { quantidade: number; valor: number }>> {
     if (this.antigasCache && Date.now() - this.antigasCache.timestamp < this.COUNT_CACHE_TTL) {
       return this.antigasCache.porPasta;
     }
 
     const regras = await PrazoService.regras();
-    const agora = Date.now();
-    const MILIS_DIA = 24 * 60 * 60 * 1000;
-
-    // Agrupa as exceções pelo mesmo número de dias para reduzir condições no SQL
-    const buckets = new Map<number, string[]>();
-    for (const [cliente, dias] of Object.entries(regras.porCliente)) {
-      const lista = buckets.get(dias) ?? [];
-      lista.push(cliente);
-      buckets.set(dias, lista);
-    }
-
-    const todasExcecoes = [...Object.keys(regras.porCliente)];
     const params: any[] = [];
-    const filters: string[] = [];
+    const condicaoAntigas = OperacaoQueryBuilder.construirCondicaoAntigas(regras, params);
 
-    // Clientes sem exceção (ou sem cliente) usam o prazo padrão
-    params.push(todasExcecoes);
-    params.push(new Date(agora - regras.padraoDias * MILIS_DIA));
-    filters.push(
-      `(NOT (UPPER(COALESCE(o.nm_pessoa_pagador, '')) = ANY($${params.length - 1}::text[]))
-        AND o.dt_emissao_ < $${params.length})`
-    );
-
-    // Cada exceção usa o seu próprio prazo
-    for (const [dias, clientes] of buckets.entries()) {
-      params.push(clientes);
-      params.push(new Date(agora - dias * MILIS_DIA));
-      filters.push(
-        `(UPPER(COALESCE(o.nm_pessoa_pagador, '')) = ANY($${params.length - 1}::text[])
-          AND o.dt_emissao_ < $${params.length})`
-      );
-    }
-
-    const rows = await prisma.$queryRawUnsafe<{ pid: number | null; antigas: bigint }[]>(
-      `SELECT "pastaId" AS pid, COUNT(*) AS antigas
+    const rows = await prisma.$queryRawUnsafe<{ pid: number | null; antigas: bigint; valor: any }[]>(
+      `SELECT "pastaId" AS pid, COUNT(*) AS antigas, COALESCE(SUM(o.vl_total), 0) AS valor
        FROM "Operacao" o
-       WHERE o.dt_emissao_ IS NOT NULL AND (${filters.join(" OR ")})
+       WHERE o.dt_emissao_ IS NOT NULL AND ${condicaoAntigas}
        GROUP BY "pastaId"`,
       ...params
     );
 
-    const porPasta: Record<string, number> = {};
+    const porPasta: Record<string, { quantidade: number; valor: number }> = {};
     for (const r of rows) {
-      porPasta[r.pid === null ? "inbox" : String(r.pid)] = Number(r.antigas);
+      porPasta[r.pid === null ? "inbox" : String(r.pid)] = {
+        quantidade: Number(r.antigas),
+        valor: Number(r.valor) || 0,
+      };
     }
     this.antigasCache = { porPasta, timestamp: Date.now() };
+    return porPasta;
+  }
+
+  // Compatibilidade: apenas a contagem (usada pela sidebar/boot).
+  static async contarEmissoesAntigasPorPasta(): Promise<Record<string, number>> {
+    const detalhado = await this.emissoesAntigasPorPasta();
+    const porPasta: Record<string, number> = {};
+    for (const [chave, item] of Object.entries(detalhado)) {
+      porPasta[chave] = item.quantidade;
+    }
     return porPasta;
   }
 

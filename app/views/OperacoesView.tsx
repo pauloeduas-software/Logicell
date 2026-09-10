@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearchParams } from "react-router";
 
 import { useOperacoesGridState } from "~/hooks/useOperacoesGridState";
-import { useOperacoesGridData } from "~/hooks/useOperacoesGridData";
+import { useOperacoesGridData, isFilterEmpty } from "~/hooks/useOperacoesGridData";
 import { useOperacoesStore } from "~/store/useOperacoesStore";
 import "react-data-grid/lib/styles.css";
 import { useOperacoesActions } from "~/hooks/useOperacoesActions";
@@ -78,10 +78,7 @@ export function OperacoesView({ pastaId = null, nomePasta, showImport = true }: 
   const getActiveFilters = () => {
     const activeFilters: Record<string, any> = { ...Object.fromEntries(searchParams), pastaId };
     for (const [key, filter] of Object.entries(columnFilters)) {
-      if (!filter) continue;
-      const isEmptyPeriod = filter.type === "period" && filter.value.split(";").every((d: string) => !d);
-      if (filter.value === "" && filter.type !== "blank" && filter.type !== "notBlank") continue;
-      if (isEmptyPeriod) continue;
+      if (isFilterEmpty(filter)) continue;
       activeFilters[`colFilter_${key}`] = `${filter.type}:${filter.value}`;
     }
     return activeFilters;

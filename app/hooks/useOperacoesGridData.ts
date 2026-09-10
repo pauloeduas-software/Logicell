@@ -19,9 +19,16 @@ function processarDatas(dados: any[]) {
   }));
 }
 
-function isFilterEmpty(filter: any) {
+export function isFilterEmpty(filter: any) {
   if (!filter) return true;
-  if (filter.type === "blank" || filter.type === "notBlank") return false;
+  if (
+    filter.type === "blank" ||
+    filter.type === "notBlank" ||
+    filter.type === "antigos" ||
+    filter.type === "duplicados"
+  ) {
+    return false;
+  }
   if (filter.type === "period") return filter.value.split(";").every((d: string) => !d);
   return filter.value === "";
 }
